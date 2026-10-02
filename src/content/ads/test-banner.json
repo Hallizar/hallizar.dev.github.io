@@ -1,0 +1,9 @@
+{
+  "id": "test-banner",
+  "title": "Build Verification Test Banner",
+  "slot": "in-article",
+  "imageUrl": "https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=700&auto=format&fit=crop&q=80",
+  "targetUrl": "https://hallizar.ru/?utm_source=hallizar_blog&utm_medium=banner&utm_campaign=build_verification",
+  "active": true,
+  "priority": 1
+}

@@ -1,0 +1,67 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import AdBanner from '../../components/AdBanner.astro';
+import '../../styles/blog.css';
+
+const posts = (await getCollection('posts', ({ data }) => !data.draft))
+  .map((post) => ({ post, pubDate: post.data.pubDate ?? post.data.date ?? new Date(0) }))
+  .sort((a, b) => b.pubDate.getTime() - a.pubDate.getTime());
+---
+
+<BaseLayout
+  title="Блог — Hallizar"
+  description="Инженерный блог о современной веб-разработке, WebAssembly, Astro SSG, SEO и монетизации через РСЯ."
+  pathname="/blog"
+  type="website"
+>
+  <div class="mx-auto max-w-6xl px-4 py-6">
+    <AdBanner slot="top-header" />
+
+    <h1 class="mt-4 mb-6 text-3xl font-extrabold text-white">Блог</h1>
+
+    <ul class="grid gap-6 md:grid-cols-2">
+      {posts.map(({ post, pubDate }) => (
+        <li class="group rounded-xs border border-[#2a2a34] bg-[#0a0a0f] overflow-hidden transition-all duration-300 hover:border-[#8B03FD]/60 hover:-translate-y-1 shadow-sm isolate">
+          <a href={`/blog/${post.id}`} class="block">
+            {/* Preview image */}
+            <div class="relative w-full h-44 sm:h-48 overflow-hidden bg-[#0a0a0f] isolate">
+              <img
+                src={
+                  post.data.heroImage ||
+                  post.data.image ||
+                  'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=1200&auto=format&fit=crop&q=80'
+                }
+                alt={post.data.title}
+                loading="lazy"
+                decoding="async"
+                class="w-full h-full object-cover transition-transform duration-500 ease-out will-change-transform group-hover:scale-105"
+              />
+              <div class="absolute inset-x-0 -bottom-[3px] top-0 bg-gradient-to-t from-[#0a0a0f] from-20% via-[#0a0a0f]/40 to-transparent pointer-events-none z-10" />
+              {post.data.category && (
+                <div class="absolute top-3 left-3 pointer-events-none z-20">
+                  <span class="px-2.5 py-1 bg-[#0a0a0f]/90 backdrop-blur-md border border-[#2a2a38] font-mono text-[9px] font-bold uppercase tracking-wider text-[#bd5aff] shadow-sm">
+                    {post.data.category}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div class="relative z-20 -mt-[2px] p-5 bg-[#0a0a0f] border-t border-[#1f1f28]">
+              <h2 class="text-lg font-bold leading-snug text-white transition-colors group-hover:text-[#bd5aff]">{post.data.title}</h2>
+              <p class="mt-2 text-xs leading-relaxed text-[#a2a2aa] line-clamp-2">{post.data.description}</p>
+              <div class="mt-4 flex items-center justify-between border-t border-[#181820] pt-3 text-xs">
+                <time class="font-mono text-[10px] text-[#6c6c76]" datetime={pubDate.toISOString()}>
+                  {pubDate.toLocaleDateString('ru-RU', { year: 'numeric', month: 'long', day: 'numeric' })}
+                </time>
+                <span class="font-mono text-[10px] font-bold text-[#bd5aff] flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                  Читать →
+                </span>
+              </div>
+            </div>
+          </a>
+        </li>
+      ))}
+    </ul>
+  </div>
+</BaseLayout>

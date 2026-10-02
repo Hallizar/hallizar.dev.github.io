@@ -1,0 +1,31 @@
+---
+/**
+ * RSNScript.astro
+ * Asynchronously loads the main Yandex RSN SDK script (context.js) once in the document <head>.
+ * Initializes the global yaContextCb queue to defer and coordinate RTB rendering calls.
+ */
+---
+
+<!-- Yandex RSN (РСЯ) SDK Asynchronous Loader -->
+<script is:inline>
+  (function () {
+    if (typeof window === 'undefined') return;
+
+    // 1. Initialize callback queue for Yandex Ads Context (Ya.Context.AdvManager)
+    window.yaContextCb = window.yaContextCb || [];
+
+    // 2. Prevent duplicate script loads in the document <head>
+    const SCRIPT_ID = 'yandex-ads-context-loader';
+    if (!document.getElementById(SCRIPT_ID)) {
+      const script = document.createElement('script');
+      script.id = SCRIPT_ID;
+      script.src = 'https://yandex.ru/ads/system/context.js';
+      script.async = true;
+      script.crossOrigin = 'anonymous';
+
+      // Ensure insertion in <head>
+      const targetHead = document.head || document.getElementsByTagName('head')[0] || document.documentElement;
+      targetHead.appendChild(script);
+    }
+  })();
+</script>

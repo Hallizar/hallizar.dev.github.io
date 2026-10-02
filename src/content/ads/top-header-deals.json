@@ -1,0 +1,12 @@
+{
+  "id": "frontend-masterclass-deal",
+  "title": "Modern Frontend & Rust WASM Masterclass - Early Bird Pass",
+  "slot": "top-header",
+  "imageUrl": "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=1000&auto=format&fit=crop&q=80",
+  "targetUrl": "https://academy.example.com/masterclass?utm_source=hallizar_blog&utm_medium=banner&utm_campaign=top_header_banner&utm_content=wasm_course",
+  "active": true,
+  "startDate": "2026-01-01",
+  "endDate": "2026-12-31",
+  "priority": 8,
+  "rtbBlockId": "R-A-2849102-1"
+}

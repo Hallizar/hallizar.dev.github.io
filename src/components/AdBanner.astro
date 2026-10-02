@@ -1,0 +1,206 @@
+---
+import { getCollection } from 'astro:content';
+
+export interface Props {
+  slot: 'sidebar' | 'in-article' | 'top-header';
+  className?: string;
+  fallbackText?: string;
+  defaultRtbId?: string;
+}
+
+const {
+  slot,
+  className = '',
+  fallbackText = 'Реклама',
+  defaultRtbId,
+} = Astro.props;
+
+// 1. Consume configurations from Content Collections (src/content/ads)
+const allAds = await getCollection('ads');
+const now = new Date();
+
+// 2. Filter active campaigns matching the specified slot
+const validAds = allAds
+  .filter((entry) => {
+    const data = entry.data;
+    if (!data.active) return false;
+    if (data.slot !== slot) return false;
+
+    if (data.startDate) {
+      const start = new Date(data.startDate);
+      if (now < start) return false;
+    }
+
+    if (data.endDate) {
+      const end = new Date(data.endDate);
+      end.setHours(23, 59, 59, 999);
+      if (now > end) return false;
+    }
+
+    return true;
+  })
+  .sort((a, b) => (b.data.priority ?? 1) - (a.data.priority ?? 1));
+
+const selectedAd = validAds.length > 0 ? validAds[0].data : null;
+const rtbBlockId = selectedAd?.rtbBlockId || defaultRtbId;
+const containerId = `yandex_rtb_${slot}_${selectedAd?.id || 'unit'}`;
+
+// Dimension placeholders preventing Cumulative Layout Shift (CLS = 0)
+const slotDimensions = {
+  sidebar: 'min-h-[300px] md:min-h-[600px]',
+  'in-article': 'min-h-[160px] md:min-h-[250px]',
+  'top-header': 'min-h-[90px]',
+}[slot];
+
+const slotLabels = {
+  sidebar: 'РСЯ · Sidebar (300×600)',
+  'in-article': 'РСЯ · Контекст (336×280)',
+  'top-header': 'РСЯ · Header (728×90)',
+}[slot];
+---
+
+{selectedAd || rtbBlockId ? (
+  <aside
+    class={`ad-slot-wrapper relative my-4 w-full ${slotDimensions} overflow-hidden rounded-xs border border-[#2a2a34] bg-[#0a0a0f] text-[#e0e0e6] transition-colors hover:border-[#8a00ff]/60 ${className}`}
+    data-slot={slot}
+    data-ad-id={selectedAd?.id || rtbBlockId}
+  >
+    {rtbBlockId ? (
+      <>
+        <!-- 1. Yandex RSN RTB Slot Container (Lazily rendered via IntersectionObserver) -->
+      <div class="flex h-full w-full flex-col justify-between p-2">
+        <div class="mb-1 flex items-center justify-between text-[9px] font-mono text-[#6c6c76]">
+          <span class="uppercase tracking-wider">{slotLabels}</span>
+          <span class="text-[#848490]">Яндекс Директ</span>
+        </div>
+
+        <div
+          id={containerId}
+          class="yandex-ad-container flex min-h-[90px] w-full flex-1 items-center justify-center transition-opacity duration-300"
+          data-rtb-block-id={rtbBlockId}
+          data-render-to={containerId}
+          data-slot-name={slot}
+        >
+          <!-- Lightweight Skeleton / Loading Placeholder -->
+          <div class="ad-skeleton flex items-center gap-2 font-mono text-xs text-[#52525e]">
+            <span class="inline-block h-2 w-2 animate-ping rounded-full bg-[#8a00ff]/60"></span>
+            <span>Загрузка рекламного блока...</span>
+          </div>
+        </div>
+      </div>
+      </>
+    ) : selectedAd ? (
+      <>
+        <!-- 2. Direct Content Collection Campaign (Image & Target URL) -->
+      <a
+        href={selectedAd.targetUrl}
+        target="_blank"
+        rel="noopener noreferrer sponsored"
+        class="direct-ad-link group flex h-full w-full flex-col justify-between p-3.5 focus:outline-none"
+      >
+        <div class="mb-2 flex items-center justify-between text-[9px] font-mono text-[#6c6c76]">
+          <span class="uppercase tracking-wider">{fallbackText}</span>
+          <span class="text-[#8a00ff] opacity-0 transition-opacity group-hover:opacity-100">
+            Перейти ↗
+          </span>
+        </div>
+
+        <div class="my-1 flex flex-col items-center gap-3.5 sm:flex-row">
+          <img
+            src={selectedAd.imageUrl}
+            alt={selectedAd.title}
+            loading="lazy"
+            decoding="async"
+            class="h-20 w-full shrink-0 rounded-xs border border-[#22222a] object-cover sm:w-40"
+          />
+          <div class="min-w-0">
+            <h4 class="font-sans text-xs font-bold leading-snug text-white transition-colors group-hover:text-[#bd5aff] sm:text-sm">
+              {selectedAd.title}
+            </h4>
+            <span class="mt-1 block truncate font-mono text-[10px] text-[#6d6d78]">
+              {new URL(selectedAd.targetUrl).hostname}
+            </span>
+          </div>
+        </div>
+      </a>
+      </>
+    ) : null}
+  </aside>
+) : null}
+
+<script>
+  /**
+   * Client-side IntersectionObserver
+   * Lazily initializes Yandex RSN RTB ad units (Ya.Context.AdvManager.render)
+   * only when the banner container scrolls into the viewport.
+   * Guarantees maximum Core Web Vitals performance and eliminates duplicate SDK calls.
+   */
+  function setupLazyAdBanners() {
+    if (typeof window === 'undefined') return;
+
+    // Ensure global callback queue exists
+    (window as any).yaContextCb = (window as any).yaContextCb || [];
+
+    const containers = document.querySelectorAll<HTMLElement>(
+      '.yandex-ad-container[data-rtb-block-id]:not([data-ad-initialized="true"])'
+    );
+
+    if (containers.length === 0) return;
+
+    // Use IntersectionObserver with a small margin so the ad begins rendering right before reaching viewport
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+
+          const target = entry.target as HTMLElement;
+          target.setAttribute('data-ad-initialized', 'true');
+          observer.unobserve(target);
+
+          const blockId = target.getAttribute('data-rtb-block-id');
+          const renderTo = target.getAttribute('data-render-to') || target.id;
+
+          if (!blockId || !renderTo) return;
+
+          // Dispatch lazy render to Yandex AdvManager queue
+          (window as any).yaContextCb.push(() => {
+            if (typeof (window as any).Ya !== 'undefined' && (window as any).Ya.Context && (window as any).Ya.Context.AdvManager) {
+              (window as any).Ya.Context.AdvManager.render({
+                blockId: blockId,
+                renderTo: renderTo,
+                darkTheme: true,
+                async: true,
+                onRender: () => {
+                  target.classList.add('ad-rendered');
+                  const skeleton = target.querySelector('.ad-skeleton');
+                  if (skeleton) skeleton.remove();
+                },
+              });
+            } else {
+              // Graceful fallback if ad blocker is active or script blocked
+              const skeleton = target.querySelector('.ad-skeleton');
+              if (skeleton) {
+                skeleton.innerHTML = '<span class="text-[10px] text-[#42424c]">Рекламный блок РСЯ</span>';
+              }
+            }
+          });
+        });
+      },
+      {
+        rootMargin: '150px 0px',
+        threshold: 0.05,
+      }
+    );
+
+    containers.forEach((container) => observer.observe(container));
+  }
+
+  // Bind to DOM ready and Astro client navigation
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupLazyAdBanners);
+  } else {
+    setupLazyAdBanners();
+  }
+
+  document.addEventListener('astro:page-load', setupLazyAdBanners);
+</script>

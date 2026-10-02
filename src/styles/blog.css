@@ -1,0 +1,96 @@
+@import 'tailwindcss';
+
+.prose-post h1,
+.prose-post h2,
+.prose-post h3,
+.prose-post h4,
+.prose-post h5,
+.prose-post h6 {
+  color: #ffffff;
+}
+
+.prose-post h2 {
+  margin: 2rem 0 0.75rem;
+  font-size: 1.5rem;
+  font-weight: 800;
+}
+.prose-post h3 {
+  margin: 1.5rem 0 0.5rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+.prose-post h4 {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 700;
+}
+.prose-post p,
+.prose-post ul,
+.prose-post ol {
+  margin: 0 0 1rem;
+  line-height: 1.75;
+  color: #c8c8cd;
+}
+.prose-post ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+}
+.prose-post ol {
+  list-style: decimal;
+  padding-left: 1.25rem;
+}
+.prose-post a {
+  color: #bd5aff;
+  text-decoration: underline;
+}
+.prose-post code {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.9em;
+  color: #e0e0e6;
+  background: #15151b;
+  padding: 0.1em 0.35em;
+}
+.prose-post pre {
+  margin: 0 0 1rem;
+  padding: 1rem;
+  overflow-x: auto;
+  border: 1px solid #2a2a34;
+  background: #0a0a0f !important;
+}
+.prose-post pre code {
+  padding: 0;
+  background: transparent;
+}
+
+.prose-post img {
+  margin: 1.5rem auto;
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid #22222c;
+  background: #07070b;
+}
+
+.prose-post figure {
+  margin: 1.5rem 0;
+  border: 1px solid #22222c;
+  background: #07070b;
+  overflow: hidden;
+}
+
+.prose-post figure img {
+  margin: 0;
+  border: none;
+  width: 100%;
+}
+
+.prose-post figcaption {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+  color: #80808c;
+  text-align: center;
+  font-family: 'DM Mono', monospace;
+  background: #09090e;
+  border-top: 1px solid #181822;
+}
+

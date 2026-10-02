@@ -1,0 +1,49 @@
+---
+import SEO, { type Props as SEOProps } from '../components/SEO.astro';
+import RSNScript from '../components/RSNScript.astro';
+
+export interface Props extends SEOProps {
+  lang?: string;
+  loadRSN?: boolean;
+}
+
+const {
+  lang = 'ru',
+  loadRSN = true,
+  ...seoProps
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang={lang} class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#050507" />
+    <meta name="color-scheme" content="dark" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="alternate icon" type="image/svg+xml" href="/logo.svg" />
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- SEO.astro: Dynamic Build-time Canonical, OG, Twitter & JSON-LD via getSEOMetadata -->
+    <SEO {...seoProps} />
+
+    <!-- Global Yandex RSN SDK Loader: loads context.js once in document <head> -->
+    {loadRSN && <RSNScript />}
+
+    <!-- Slot for additional page-specific head elements -->
+    <slot name="head" />
+  </head>
+  <body class="min-h-screen bg-[#050507] text-[#e0e0e6] antialiased selection:bg-[#8a00ff] selection:text-white">
+    <slot />
+  </body>
+</html>

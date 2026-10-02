@@ -1,0 +1,68 @@
+---
+import { getCollection, render } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import AdBanner from '../../components/AdBanner.astro';
+import '../../styles/blog.css';
+
+export async function getStaticPaths() {
+  const posts = await getCollection('posts', ({ data }) => !data.draft);
+  return posts.map((post) => ({
+    params: { slug: post.id },
+    props: { post },
+  }));
+}
+
+const { post } = Astro.props;
+const { Content } = await render(post);
+const { title, description, heroImage, category, tags } = post.data;
+const pubDate = post.data.pubDate ?? post.data.date ?? new Date();
+const updatedDate = post.data.updatedDate ?? pubDate;
+---
+
+<BaseLayout
+  title={`${title} — Hallizar`}
+  description={description}
+  image={heroImage}
+  pathname={`/blog/${post.id}`}
+  type="article"
+  article={{ pubDate, updatedDate, tags, section: category }}
+>
+  <div class="mx-auto max-w-6xl px-4 py-6">
+    <AdBanner slot="top-header" />
+
+    <div class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <article class="min-w-0">
+        <a href="/blog" class="font-mono text-xs text-[#848490] hover:text-[#bd5aff]">← Все записи</a>
+        <header class="mt-4 mb-6">
+          {category && (
+            <span class="font-mono text-[10px] uppercase tracking-wider text-[#bd5aff]">{category}</span>
+          )}
+          <h1 class="mt-2 text-3xl font-extrabold leading-tight text-white md:text-4xl">{title}</h1>
+          <time class="mt-2 block font-mono text-xs text-[#6c6c76]" datetime={pubDate.toISOString()}>
+            {pubDate.toLocaleDateString('ru-RU', { year: 'numeric', month: 'long', day: 'numeric' })}
+          </time>
+        </header>
+
+        {heroImage && (
+          <img
+            src={heroImage}
+            alt={title}
+            width="1200"
+            height="630"
+            class="mb-6 h-auto w-full rounded-xs border border-[#22222a] object-cover"
+          />
+        )}
+
+        <div class="prose-post">
+          <Content />
+        </div>
+
+        <AdBanner slot="in-article" />
+      </article>
+
+      <aside class="min-w-0">
+        <AdBanner slot="sidebar" />
+      </aside>
+    </div>
+  </div>
+</BaseLayout>

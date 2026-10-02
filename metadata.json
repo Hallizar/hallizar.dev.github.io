@@ -1,0 +1,6 @@
+{
+  "name": "Local GIF Studio",
+  "description": "Локальный браузерный инструмент для быстрой сборки анимированных GIF из последовательности кадров PNG, JPG, WebP без отправки на сервер.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

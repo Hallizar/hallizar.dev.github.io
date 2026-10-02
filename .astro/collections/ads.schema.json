@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "slot": {
+      "type": "string",
+      "enum": [
+        "sidebar",
+        "in-article",
+        "top-header"
+      ]
+    },
+    "imageUrl": {
+      "type": "string"
+    },
+    "targetUrl": {
+      "type": "string",
+      "format": "uri"
+    },
+    "active": {
+      "default": true,
+      "type": "boolean"
+    },
+    "startDate": {
+      "type": "string"
+    },
+    "endDate": {
+      "type": "string"
+    },
+    "priority": {
+      "default": 1,
+      "type": "number"
+    },
+    "rtbBlockId": {
+      "type": "string"
+    },
+    "$schema": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "title",
+    "slot",
+    "imageUrl",
+    "targetUrl"
+  ]
+}

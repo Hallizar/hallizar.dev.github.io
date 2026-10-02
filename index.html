@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Local GIF Studio — Создание GIF из серии кадров</title>
+    <meta
+      name="description"
+      content="Локальный браузерный инструмент для быстрой сборки анимированных GIF из последовательности кадров PNG, JPG, WebP без отправки на сервер."
+    />
+    <meta name="theme-color" content="#050507" />
+    <meta name="color-scheme" content="dark" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Local GIF Studio — Создание GIF из серии кадров" />
+    <meta
+      property="og:description"
+      content="Локальный браузерный инструмент для быстрой сборки анимированных GIF из последовательности кадров PNG, JPG, WebP без отправки на сервер."
+    />
+    <meta property="og:url" content="https://hallizar.ru/" />
+    <meta property="og:image" content="https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=1200&amp;auto=format&amp;fit=crop&amp;q=80" />
+    <meta property="og:site_name" content="Hallizar Studio" />
+    <meta property="og:locale" content="ru_RU" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Local GIF Studio — Создание GIF из серии кадров" />
+    <meta
+      name="twitter:description"
+      content="Локальный браузерный инструмент для быстрой сборки анимированных GIF из последовательности кадров PNG, JPG, WebP без отправки на сервер."
+    />
+    <meta name="twitter:image" content="https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=1200&amp;auto=format&amp;fit=crop&amp;q=80" />
+
+    <!-- Sitemap -->
+    <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap-index.xml" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="alternate icon" type="image/svg+xml" href="/logo.svg" />
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Schema.org Structured Data -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "name": "Hallizar Studio & Blog",
+            "description": "Сайт-блог без админки с встроенными веб-сервисами (Local GIF Studio, WebP Optimizer), SEO-разметкой и поддержкой рекламных блоков под Astro.",
+            "inLanguage": "ru-RU"
+          },
+          {
+            "@type": "WebApplication",
+            "name": "Local GIF Studio",
+            "applicationCategory": "MultimediaApplication",
+            "operatingSystem": "All",
+            "description": "Локальный браузерный инструмент для быстрой сборки анимированных GIF из последовательности кадров PNG, JPG, WebP без отправки на сервер.",
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "RUB"
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Netlify Identity redirect script for Decap CMS invite/login -->
+    <script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
+    <script>
+      if (window.netlifyIdentity) {
+        window.netlifyIdentity.on("init", function(user) {
+          if (!user) {
+            window.netlifyIdentity.on("login", function() {
+              document.location.href = "/admin/";
+            });
+          }
+        });
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
