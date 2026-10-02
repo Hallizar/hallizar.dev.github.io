@@ -3,7 +3,7 @@ title: Мой первый пост о том, почему я решил вый
 date: 2026-09-10T14:00:00.000Z
 description: "Зачем я завел этот блог? (Спойлер: надоело держать всё в папке
   projects/final_v2)"
-category: Frontend & Архитектура
+category: Информация
 heroImage: /assets/uploads/123167.webp
 draft: false
 pubDate: 2026-09-10T14:00:00.000Z
