@@ -46,7 +46,7 @@ export function BlogPostView({
         '@type': 'Organization',
         name: 'Hallizar Studio',
       },
-      datePublished: '2026-09-28',
+      datePublished: post.isoDate || post.date,
       mainEntityOfPage: window.location.href,
     });
 
