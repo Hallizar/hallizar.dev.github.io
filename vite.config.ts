@@ -1,5 +1,6 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
+import fs from 'node:fs';
 import path from 'path';
 import { defineConfig, type Plugin } from 'vite';
 import { githubAuthMiddleware } from './src/server/github-auth-middleware.ts';
@@ -21,8 +22,14 @@ function githubAuthPlugin(): Plugin {
 }
 
 export default defineConfig(() => {
+  const cnamePath = path.resolve('public/CNAME');
+  const hasCustomDomain = fs.existsSync(cnamePath) && fs.readFileSync(cnamePath, 'utf8').trim().length > 0;
+  const isGitHubActions = process.env.GITHUB_ACTIONS === 'true';
+  const repoName = 'hallizar.dev.github.io';
+  const base = process.env.BASE_PATH || (isGitHubActions && !hasCustomDomain ? `/${repoName}/` : './');
+
   return {
-    base: './',
+    base,
     plugins: [react(), tailwindcss(), githubAuthPlugin()],
     resolve: {
       alias: {
