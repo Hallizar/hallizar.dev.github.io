@@ -1,12 +1,29 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
+import { githubAuthMiddleware } from './src/server/github-auth-middleware.ts';
+
+function githubAuthPlugin(): Plugin {
+  return {
+    name: 'github-auth-plugin',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        githubAuthMiddleware(req, res, next);
+      });
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use((req, res, next) => {
+        githubAuthMiddleware(req, res, next);
+      });
+    },
+  };
+}
 
 export default defineConfig(() => {
   return {
     base: '/',
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), githubAuthPlugin()],
     resolve: {
       alias: {
         '@': path.resolve('.'),

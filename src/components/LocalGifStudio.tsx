@@ -824,12 +824,25 @@ export function LocalGifStudio() {
                   data-testid="dropzone-frames"
                 >
                   <div className="drop-content">
-                    <div className="drop-index">DROP / 01</div>
-                    <h2>{loadingFiles ? 'ЧИТАЕМ ИЗОБРАЖЕНИЯ…' : 'ПЕРЕТАЩИТЕ КАДРЫ СЮДА'}</h2>
+                    <div className="drop-icon-badge">
+                      <ImagePlus size={26} />
+                    </div>
+
+                    <div className="drop-index">
+                      <span>ШАГ 01 &middot; ЗАГРУЗКА</span>
+                    </div>
+
+                    <h2>{loadingFiles ? 'ЧТЕНИЕ ИЗОБРАЖЕНИЙ…' : 'Перетащите серию кадров сюда'}</h2>
                     <p>
-                      PNG · JPG · WEBP · GIF<br />
-                      Имена <span>scene_01.png</span> → автоматически формируют одну серию.
+                      Файлы с последовательной нумерацией (например, <span>scene_01.png</span>) автоматически формируют плавную анимацию.
                     </p>
+
+                    <div className="drop-formats">
+                      <span className="drop-format-pill">PNG</span>
+                      <span className="drop-format-pill">JPG / JPEG</span>
+                      <span className="drop-format-pill">WEBP</span>
+                      <span className="drop-format-pill">GIF</span>
+                    </div>
 
                     <div className="action-row">
                       <button
@@ -840,23 +853,15 @@ export function LocalGifStudio() {
                       >
                         <UploadCloud size={15} />
                         ВЫБРАТЬ ФАЙЛЫ
-                        <b>↗</b>
                       </button>
 
                       {frames.length > 0 && (
                         <button className="ui-button ghost" onClick={reset}>
                           <Trash2 size={14} />
-                          ОЧИСТИТЬ
+                          ОЧИСТИТЬ ({frames.length})
                         </button>
                       )}
                     </div>
-                  </div>
-
-                  <div className="drop-art">
-                    <div className="orbit orbit-a" />
-                    <div className="orbit orbit-b" />
-                    <ImagePlus size={52} strokeWidth={1} />
-                    <span>+</span>
                   </div>
 
                   <input

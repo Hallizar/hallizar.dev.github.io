@@ -6,12 +6,13 @@ import {
   Sparkles,
   Crosshair,
   Archive,
+  Zap,
 } from 'lucide-react';
 import { BLOG_POSTS } from './data/posts';
 import { INITIAL_ADS, getActiveAdForSlot } from './data/ads';
 import { BlogPost, AdBannerItem } from './types';
 import { LocalGifStudio } from './components/LocalGifStudio';
-import { ImageConverterTool } from './components/ImageConverterTool';
+import { SquooshStudio } from './components/SquooshStudio';
 import { AreaAnalyzerTool } from './components/AreaAnalyzerTool';
 import { BlogList } from './components/BlogList';
 import { BlogPostView } from './components/BlogPostView';
@@ -28,7 +29,7 @@ export default function App() {
     return 'blog';
   });
 
-  const [selectedService, setSelectedService] = useState<'gif-studio' | 'webp-converter' | 'area-analyzer'>('gif-studio');
+  const [selectedService, setSelectedService] = useState<'gif-studio' | 'squoosh' | 'area-analyzer'>('squoosh');
   const [selectedPost, setSelectedPost] = useState<BlogPost | null>(null);
 
   // Active ads for slots (queried at build/runtime from src/content/ads)
@@ -214,7 +215,7 @@ export default function App() {
               <div className="flex flex-wrap gap-2 font-mono text-xs">
                 <button
                   onClick={() => setSelectedService('gif-studio')}
-                  className={`px-4 py-2 border transition-all flex items-center gap-2 ${
+                  className={`px-4 py-2 border transition-all flex items-center gap-2 cursor-pointer ${
                     selectedService === 'gif-studio'
                       ? 'border-[#8a00ff] bg-[#8a00ff] text-white font-bold'
                       : 'border-[#33333d] bg-[#0c0c12] text-[#888894] hover:text-white'
@@ -225,20 +226,20 @@ export default function App() {
                 </button>
 
                 <button
-                  onClick={() => setSelectedService('webp-converter')}
-                  className={`px-4 py-2 border transition-all flex items-center gap-2 ${
-                    selectedService === 'webp-converter'
-                      ? 'border-[#8a00ff] bg-[#8a00ff] text-white font-bold'
+                  onClick={() => setSelectedService('squoosh')}
+                  className={`px-4 py-2 border transition-all flex items-center gap-2 cursor-pointer ${
+                    selectedService === 'squoosh'
+                      ? 'border-[#00ff9d] bg-[#00ff9d] text-black font-bold shadow-md'
                       : 'border-[#33333d] bg-[#0c0c12] text-[#888894] hover:text-white'
                   }`}
                 >
-                  <Archive size={14} />
-                  СЖАТИЕ & ZIP
+                  <Sparkles size={14} className={selectedService === 'squoosh' ? 'text-black' : 'text-[#00ff9d]'} />
+                  SQUOOSH STUDIO
                 </button>
 
                 <button
                   onClick={() => setSelectedService('area-analyzer')}
-                  className={`px-4 py-2 border transition-all flex items-center gap-2 ${
+                  className={`px-4 py-2 border transition-all flex items-center gap-2 cursor-pointer ${
                     selectedService === 'area-analyzer'
                       ? 'border-[#8a00ff] bg-[#8a00ff] text-white font-bold'
                       : 'border-[#33333d] bg-[#0c0c12] text-[#888894] hover:text-white'
@@ -252,7 +253,7 @@ export default function App() {
 
             <div className="border border-[#30303a] bg-[#08080c] p-2 sm:p-4">
               {selectedService === 'gif-studio' && <LocalGifStudio />}
-              {selectedService === 'webp-converter' && <ImageConverterTool />}
+              {selectedService === 'squoosh' && <SquooshStudio />}
               {selectedService === 'area-analyzer' && <AreaAnalyzerTool />}
             </div>
           </div>

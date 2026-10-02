@@ -1,15 +1,16 @@
 backend:
   name: github
-  repo: hallizar/BLOG
+  repo: Hallizar/hallizar.dev.github.io
   branch: main
+  auth_endpoint: api/auth/github
 
 # Asset and media storage
 media_folder: 'public/assets/uploads'
 public_folder: '/assets/uploads'
 
 # Site display URLs
-site_url: 'https://hallizar.ru'
-display_url: 'https://hallizar.ru'
+site_url: 'https://hallizar.dev.github.io'
+display_url: 'https://hallizar.dev.github.io'
 logo_url: '/favicon.svg'
 
 # Managed Content Collections
