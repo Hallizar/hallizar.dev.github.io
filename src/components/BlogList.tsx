@@ -85,17 +85,8 @@ export function BlogList({
         {/* Main Content Feed */}
         <main className="space-y-4">
           {filteredPosts.length === 0 ? (
-            <div className="p-12 text-center border border-dashed border-[#24242e] text-[#777] bg-[#07070a] space-y-2">
-              <p className="text-sm text-[#aaa]">
-                {search
-                  ? `Статей по запросу "${search}" не найдено.`
-                  : 'В блоге пока нет опубликованных статей.'}
-              </p>
-              {!search && (
-                <p className="text-[11px] text-[#666]">
-                  Перейдите в <a href="/admin/" className="text-[#bd5aff] underline hover:text-[#e09eff]">панель управления</a>, чтобы опубликовать новый материал!
-                </p>
-              )}
+            <div className="p-12 text-center border border-dashed border-[#24242e] text-[#666] bg-[#07070a]">
+              Статей по запросу &quot;{search}&quot; не найдено.
             </div>
           ) : (
             filteredPosts.map((post) => (

@@ -172,16 +172,15 @@ function relDist(file) {
 
 section('Mock content fixtures');
 
-check('src/content/posts fixtures have complete frontmatter', () => {
-  const files = fs.readdirSync(POSTS_DIR).filter((f) => /\.(md|mdx)$/.test(f));
-  if (files.length === 0) return;
-  const target = files.includes('test-post.md') ? 'test-post.md' : files[0];
-  const file = path.join(POSTS_DIR, target);
+check('src/content/posts/test-post.md has complete frontmatter (title, date, description)', () => {
+  const file = path.join(POSTS_DIR, 'test-post.md');
+  assert(fs.existsSync(file), 'test-post.md is missing');
   const fm = readFrontmatter(file);
-  assert(fm, `${target} has no frontmatter block`);
-  for (const key of ['title', 'description']) {
+  assert(fm, 'test-post.md has no frontmatter block');
+  for (const key of ['title', 'date', 'description']) {
     assert(fm[key] !== undefined && String(fm[key]).trim() !== '', `frontmatter field "${key}" is missing or empty`);
   }
+  assert(!Number.isNaN(new Date(fm.date).getTime()), `frontmatter "date" is not a valid date: ${fm.date}`);
 });
 
 check('src/content/ads/test-banner.json contains all required ad fields', () => {

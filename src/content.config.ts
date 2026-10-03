@@ -4,13 +4,13 @@ import { glob } from 'astro/loaders';
 const postsCollection = defineCollection({
   loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/posts' }),
   schema: z.object({
-    title: z.string().optional().default('Без названия'),
-    description: z.string().optional().default(''),
+    title: z.string(),
+    description: z.string(),
     date: z.coerce.date().optional(),
     pubDate: z.coerce.date().optional(),
     updatedDate: z.coerce.date().optional(),
-    category: z.string().optional().default('Блог'),
-    tags: z.array(z.string()).optional().default([]),
+    category: z.string().optional(),
+    tags: z.array(z.string()).optional(),
     heroImage: z.string().optional(),
     draft: z.boolean().default(false),
     content: z.string().optional(),
