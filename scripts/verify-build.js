@@ -244,11 +244,12 @@ check('dist/sitemap-index.xml is well-formed XML and lists every published post 
     const childXml = readDist(relPath);
     assertWellFormedXml(childXml, relPath);
     assert(/<urlset\b/.test(childXml), `${relPath} root must be <urlset>`);
-    for (const url of extractLocs(childXml)) urls.add(decodeURI(url).replace(/\/$/, ''));
+    for (const url of extractLocs(childXml)) urls.add(url.replace(/\/$/, ''));
   }
 
   const missing = postSlugs.filter((slug) => !urls.has(`${SITE}/blog/${slug}`));
   assert(missing.length === 0, `post URLs missing from sitemap: ${missing.join(', ')}`);
+  assert(urls.has(`${SITE}/blog/test-post`), 'test-post URL missing from sitemap');
   const adminUrls = [...urls].filter((u) => u.includes('/admin'));
   assert(adminUrls.length === 0, `sitemap must not list admin URLs: ${adminUrls.join(', ')}`);
 });
@@ -317,7 +318,7 @@ for (const file of htmlPages) {
       assert(getMeta(html, 'property', 'og:type') === 'article', 'post pages must use og:type="article"');
       assert(getMeta(html, 'property', 'article:published_time'), 'post pages need article:published_time');
       const slug = rel.split('/')[1];
-      assert(decodeURI(getMeta(html, 'property', 'og:url') ?? '').replace(/\/$/, '') === `${SITE}/blog/${slug}`,
+      assert(getMeta(html, 'property', 'og:url')?.replace(/\/$/, '') === `${SITE}/blog/${slug}`,
         `og:url should be ${SITE}/blog/${slug}, got ${getMeta(html, 'property', 'og:url')}`);
       assert(/<link\b[^>]*rel=["']?canonical["']?[^>]*>/i.test(html), 'post pages need a canonical link');
     }

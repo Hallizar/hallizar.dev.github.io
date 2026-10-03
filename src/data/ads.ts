@@ -1,4 +1,4 @@
-import { AdBannerItem } from '../types/index';
+import { AdBannerItem } from '../types';
 
 // Dynamically import all JSON ad configurations from src/content/ads
 const rawAds = import.meta.glob('../content/ads/*.json', {

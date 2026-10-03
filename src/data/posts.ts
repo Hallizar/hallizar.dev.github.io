@@ -1,4 +1,4 @@
-import { BlogPost } from '../types/index';
+import { BlogPost } from '../types';
 import { parse as parseYaml } from 'yaml';
 
 // Dynamically import all markdown files from src/content/posts at build time
@@ -57,16 +57,10 @@ function parseMarkdownPost(filepath: string, rawText: string): BlogPost | null {
   const rawDate = frontmatter.date || frontmatter.pubDate;
   const isoDate = rawDate ? new Date(rawDate).toISOString() : new Date().toISOString();
   const dateFormatted = formatDate(rawDate);
-
-  let rawImage = frontmatter.heroImage || frontmatter.image;
-  let image = 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=1200&auto=format&fit=crop&q=80';
-  if (rawImage && typeof rawImage === 'string') {
-    if (rawImage.startsWith('/') && !rawImage.startsWith('//')) {
-      image = '.' + rawImage;
-    } else {
-      image = rawImage;
-    }
-  }
+  const image =
+    frontmatter.heroImage ||
+    frontmatter.image ||
+    'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=1200&auto=format&fit=crop&q=80';
 
   const wordCount = content.split(/\s+/).filter(Boolean).length;
   const readingTime = `${Math.max(1, Math.ceil(wordCount / 120))} мин чтения`;
