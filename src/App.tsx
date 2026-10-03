@@ -32,8 +32,47 @@ export default function App() {
   const [selectedService, setSelectedService] = useState<'gif-studio' | 'squoosh' | 'area-analyzer'>('squoosh');
   const [selectedPost, setSelectedPost] = useState<BlogPost | null>(null);
 
-  // Active ads for slots (queried at build/runtime from src/content/ads)
-  const [ads] = useState<AdBannerItem[]>(INITIAL_ADS);
+  // Active ads for slots. Loaded at runtime from /ads-data.json, which is
+  // generated at build time from src/content/ads (data edited in Decap CMS admin).
+  // Falls back to hard-coded INITIAL_ADS only if the generated file is unavailable.
+  const [ads, setAds] = useState<AdBannerItem[]>(INITIAL_ADS);
+
+  const [posts, setPosts] = useState<BlogPost[]>(BLOG_POSTS);
+
+  // Load admin-managed content (Decap CMS -> src/content -> public/*-data.json) at runtime.
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch('/ads-data.json', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((payload) => {
+        if (cancelled || !payload) return;
+        const loaded: AdBannerItem[] = Array.isArray(payload) ? payload : payload.ads;
+        if (Array.isArray(loaded) && loaded.length > 0) {
+          setAds(loaded);
+        }
+      })
+      .catch(() => {
+        /* keep INITIAL_ADS fallback */
+      });
+
+    fetch('/posts-data.json', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((payload) => {
+        if (cancelled || !payload) return;
+        const loaded: BlogPost[] = Array.isArray(payload) ? payload : payload.posts;
+        if (Array.isArray(loaded) && loaded.length > 0) {
+          setPosts(loaded);
+        }
+      })
+      .catch(() => {
+        /* keep BLOG_POSTS fallback */
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const topHeaderAd = getActiveAdForSlot(ads, 'top-header');
   const sidebarAd = getActiveAdForSlot(ads, 'sidebar');
   const inArticleAd = getActiveAdForSlot(ads, 'in-article');
@@ -191,7 +230,7 @@ export default function App() {
               />
             ) : (
               <BlogList
-                posts={BLOG_POSTS}
+                posts={posts}
                 sidebarAd={sidebarAd}
                 onSelectPost={(post) => setSelectedPost(post)}
               />
