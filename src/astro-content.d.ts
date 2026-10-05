@@ -28,3 +28,25 @@ declare module '@astrojs/react' {
 declare module '@astrojs/sitemap' {
   export default function sitemap(): any;
 }
+
+declare module '*.wasm?url' {
+  const url: string;
+  export default url;
+}
+
+declare module 'imagequant/imagequant_bg.js' {
+  export function __wbg_set_wasm(val: any): void;
+  export class Imagequant {
+    constructor();
+    free(): void;
+    set_max_colors(max_colors: number): void;
+    set_quality(minimum: number, target: number): void;
+    set_speed(value: number): void;
+    set_min_posterization(value: number): void;
+    process(image: any): Uint8Array;
+  }
+  export class ImagequantImage {
+    constructor(data: Uint8Array, width: number, height: number, gamma: number);
+    free(): void;
+  }
+}

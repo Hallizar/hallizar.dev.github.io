@@ -763,11 +763,11 @@ export function LocalGifStudio() {
                   }}
                 >
                   <span className="step-number">{number}</span>
-                  <span className="step-copy">
+                  <span className="step-copy hidden md:grid">
                     <strong>{title}</strong>
                     <small>{caption}</small>
                   </span>
-                  <span className="step-state">{complete ? '✓' : '↗'}</span>
+                  <span className="step-state hidden md:inline">{complete ? '✓' : '↗'}</span>
                 </button>
               );
             })}

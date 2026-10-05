@@ -5,7 +5,6 @@ import {
   RotateCcw,
   Undo2,
   FileText,
-  Sparkles,
   Layers,
   Crosshair,
   CheckCircle2,
@@ -99,12 +98,12 @@ export function AreaAnalyzerTool() {
           naturalHeight = img.naturalHeight;
           resolve();
         };
-        img.onerror = () => reject(new Error('Ошибка чтения изображения'));
+        img.onerror = reject;
         img.src = dataUrl;
       });
 
       return {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        id: `card-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
         name: file.name,
         size: file.size,
         dataUrl,
@@ -123,9 +122,9 @@ export function AreaAnalyzerTool() {
     setLoading(true);
 
     const newCards: ImageCardItem[] = [];
-    for (const f of files) {
-      const item = await processFile(f);
-      if (item) newCards.push(item);
+    for (const file of files) {
+      const card = await processFile(file);
+      if (card) newCards.push(card);
     }
 
     setCards((prev) => [...prev, ...newCards]);
@@ -140,41 +139,48 @@ export function AreaAnalyzerTool() {
     }
   };
 
-  const handleClearAll = () => {
-    // Revoke object URLs to avoid memory leaks
-    cards.forEach((c) => {
-      if (c.dataUrl.startsWith('blob:')) URL.revokeObjectURL(c.dataUrl);
-    });
-    setCards([]);
-  };
-
   const handleRemoveCard = (id: string) => {
     setCards((prev) => {
       const card = prev.find((c) => c.id === id);
-      if (card && card.dataUrl.startsWith('blob:')) URL.revokeObjectURL(card.dataUrl);
+      if (card?.dataUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(card.dataUrl);
+      }
       return prev.filter((c) => c.id !== id);
     });
   };
 
+  const handleClearAll = () => {
+    cards.forEach((card) => {
+      if (card.dataUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(card.dataUrl);
+      }
+    });
+    setCards([]);
+  };
+
   const handleResetCard = (id: string) => {
     setCards((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, rectangles: [] } : c))
+      prev.map((c) => (c.id === id ? { ...c, rectangles: [] } : c)),
     );
   };
 
   const handleUndoCard = (id: string) => {
     setCards((prev) =>
       prev.map((c) =>
-        c.id === id ? { ...c, rectangles: c.rectangles.slice(0, -1) } : c
-      )
+        c.id === id
+          ? { ...c, rectangles: c.rectangles.slice(0, -1) }
+          : c,
+      ),
     );
   };
 
   const handleAddRect = (id: string, rect: Rect) => {
     setCards((prev) =>
       prev.map((c) =>
-        c.id === id ? { ...c, rectangles: [...c.rectangles, rect] } : c
-      )
+        c.id === id
+          ? { ...c, rectangles: [...c.rectangles, rect] }
+          : c,
+      ),
     );
   };
 
@@ -185,14 +191,14 @@ export function AreaAnalyzerTool() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 text-(--text)">
       {/* Header Info */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#24242e]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-(--line)">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold font-sans text-white tracking-tight">
+          <h2 className="text-xl sm:text-2xl font-bold font-sans text-(--text) tracking-tight">
             Проверка площади текста на изображении
           </h2>
-          <p className="text-xs text-[#8c8c9a] mt-1 max-w-2xl leading-relaxed">
+          <p className="text-xs text-(--muted) mt-1 max-w-2xl leading-relaxed font-sans">
             Загрузите баннер, макет или документ. Выделяйте текстовые блоки и элементы курсором мыши для точного расчета суммарной площади и процента покрытия.
           </p>
         </div>
@@ -200,7 +206,7 @@ export function AreaAnalyzerTool() {
         {cards.length > 0 && (
           <button
             onClick={handleClearAll}
-            className="self-start sm:self-center px-3 py-1.5 border border-[#362536] bg-[#1a0f1e] text-[#ff6685] hover:bg-[#2c1328] hover:border-[#ff4070] transition-colors text-xs font-mono flex items-center gap-1.5 cursor-pointer"
+            className="self-start sm:self-center px-3 py-1.5 border border-(--line) bg-(--elevated) text-(--danger) hover:border-(--danger) transition-colors text-xs font-mono rounded-lg flex items-center gap-1.5 cursor-pointer"
           >
             <Trash2 size={13} />
             Очистить всё ({cards.length})
@@ -217,10 +223,10 @@ export function AreaAnalyzerTool() {
         onDragLeave={() => setIsDragOver(false)}
         onDrop={handleDrop}
         onClick={() => fileInputRef.current?.click()}
-        className={`border-2 border-dashed p-8 text-center cursor-pointer transition-all duration-200 relative overflow-hidden group ${
+        className={`border-2 border-dashed p-8 text-center cursor-pointer transition-all duration-200 relative overflow-hidden group rounded-2xl ${
           isDragOver
-            ? 'border-[#8B03FD] bg-(--accent)/10 scale-[1.005]'
-            : 'border-[#282836] bg-[#08080d] hover:border-(--accent)/60 hover:bg-[#0c0c14]'
+            ? 'border-(--accent) bg-(--accent-soft)/25 scale-[1.005]'
+            : 'border-(--line-strong) bg-(--panel) hover:border-(--accent)/60 hover:bg-(--elevated)'
         }`}
       >
         <input
@@ -238,16 +244,16 @@ export function AreaAnalyzerTool() {
         />
 
         <div className="flex flex-col items-center justify-center gap-2">
-          <div className="w-12 h-12 rounded-full bg-[#12121c] border border-[#2c2c3c] flex items-center justify-center text-[#bd5aff] group-hover:scale-110 group-hover:border-[#8B03FD] transition-all">
+          <div className="w-12 h-12 rounded-full bg-(--elevated) border border-(--line) flex items-center justify-center text-(--accent) group-hover:scale-110 group-hover:border-(--accent) transition-all">
             <UploadCloud size={24} />
           </div>
-          <div className="text-sm font-bold text-white mt-1">
+          <div className="text-sm font-bold text-(--text) mt-1">
             {loading ? 'Обработка файлов...' : 'Перетащите файлы сюда или нажмите для выбора'}
           </div>
-          <div className="text-[11px] font-mono text-[#727280]">
+          <div className="text-[11px] font-mono text-(--muted)">
             Поддерживаются: PNG, JPG, WebP, SVG и векторные PDF
           </div>
-          <div className="text-[10px] text-[#bd5aff] font-mono mt-1">
+          <div className="text-[10px] text-(--accent) font-mono mt-1">
             ✓ Пакетная загрузка нескольких файлов сразу
           </div>
         </div>
@@ -255,12 +261,12 @@ export function AreaAnalyzerTool() {
 
       {/* Cards List */}
       {cards.length === 0 ? (
-        <div className="p-12 text-center border border-dashed border-[#20202a] bg-[#07070a] text-[#6c6c78]">
-          <Crosshair size={32} className="mx-auto mb-3 opacity-30 text-[#8B03FD]" />
-          <div className="text-xs font-mono uppercase tracking-wider mb-1">
+        <div className="p-12 text-center border border-dashed border-(--line) bg-(--panel) text-(--muted) rounded-2xl">
+          <Crosshair size={32} className="mx-auto mb-3 opacity-30 text-(--accent)" />
+          <div className="text-xs font-mono uppercase tracking-wider mb-1 text-(--text) font-bold">
             Список файлов пуст
           </div>
-          <div className="text-[11px] text-[#555]">
+          <div className="text-[11px] text-(--muted)">
             Загрузите изображение или PDF выше, чтобы начать интерактивное выделение площадей
           </div>
         </div>
@@ -317,35 +323,35 @@ function AreaCard({
       return {
         text: '0%',
         label: 'Нет областей',
-        bg: 'bg-[#121218]',
-        border: 'border-[#262632]',
-        textColor: 'text-[#888894]',
+        bg: 'bg-(--elevated)',
+        border: 'border-(--line)',
+        textColor: 'text-(--muted)',
       };
     }
     if (pct <= 20) {
       return {
         text: `${pct.toFixed(2)}%`,
         label: 'В норме (до 20%)',
-        bg: 'bg-[#003820]/40',
-        border: 'border-(--success)/50',
-        textColor: 'text-[#00ff9d]',
+        bg: 'bg-(--success)/10',
+        border: 'border-(--success)/40',
+        textColor: 'text-(--success)',
       };
     }
     if (pct <= 30) {
       return {
         text: `${pct.toFixed(2)}%`,
         label: 'Погранично (20-30%)',
-        bg: 'bg-[#3b2a05]/50',
-        border: 'border-(--warning)/60',
-        textColor: 'text-[#ffd000]',
+        bg: 'bg-amber-500/10',
+        border: 'border-amber-500/40',
+        textColor: 'text-amber-500',
       };
     }
     return {
       text: `${pct.toFixed(2)}%`,
       label: 'Высокая плотность (>30%)',
-      bg: 'bg-[#330030]/50',
-      border: 'border-[#ff4070]/60',
-      textColor: 'text-[#ff6699]',
+      bg: 'bg-(--danger)/10',
+      border: 'border-(--danger)/40',
+      textColor: 'text-(--danger)',
     };
   };
 
@@ -358,9 +364,6 @@ function AreaCard({
       if (!container) return null;
 
       const rect = container.getBoundingClientRect();
-      const mouseX = clientX - rect.left;
-      const mouseY = clientY - rect.top;
-
       const containerW = rect.width;
       const containerH = rect.height;
 
@@ -384,39 +387,41 @@ function AreaCard({
         offsetY = 0;
       }
 
-      // Constrain coordinates to image bounds
-      const clampedX = Math.max(offsetX, Math.min(mouseX, offsetX + renderedW));
-      const clampedY = Math.max(offsetY, Math.min(mouseY, offsetY + renderedH));
+      const clickX = clientX - rect.left - offsetX;
+      const clickY = clientY - rect.top - offsetY;
 
-      const imgX = ((clampedX - offsetX) / renderedW) * card.naturalWidth;
-      const imgY = ((clampedY - offsetY) / renderedH) * card.naturalHeight;
+      if (clickX < 0 || clickX > renderedW || clickY < 0 || clickY > renderedH) {
+        return null;
+      }
 
-      return { x: imgX, y: imgY };
+      const naturalX = Math.round((clickX / renderedW) * card.naturalWidth);
+      const naturalY = Math.round((clickY / renderedH) * card.naturalHeight);
+
+      return {
+        x: Math.max(0, Math.min(naturalX, card.naturalWidth)),
+        y: Math.max(0, Math.min(naturalY, card.naturalHeight)),
+      };
     },
     [card.naturalWidth, card.naturalHeight]
   );
 
-  // Redraw canvas with high DPR and cyber styling
+  // Render on overlay canvas
   const renderCanvas = useCallback(
     (temp: Rect | null = null) => {
       const canvas = canvasRef.current;
       const container = containerRef.current;
       if (!canvas || !container) return;
 
-      const rect = container.getBoundingClientRect();
-      if (rect.width === 0 || rect.height === 0) return;
-
-      const dpr = window.devicePixelRatio || 1;
-      const targetW = Math.round(rect.width * dpr);
-      const targetH = Math.round(rect.height * dpr);
-
-      if (canvas.width !== targetW || canvas.height !== targetH) {
-        canvas.width = targetW;
-        canvas.height = targetH;
-      }
-
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
+
+      const rect = container.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+
+      if (canvas.width !== rect.width * dpr || canvas.height !== rect.height * dpr) {
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+      }
 
       ctx.save();
       ctx.scale(dpr, dpr);
@@ -454,18 +459,15 @@ function AreaCard({
         const rw = r.width * scaleX;
         const rh = r.height * scaleY;
 
-        // Semi-transparent cyberpunk purple fill
-        ctx.fillStyle = 'rgba(139, 3, 253, 0.22)';
+        ctx.fillStyle = 'rgba(97, 95, 255, 0.25)';
         ctx.fillRect(rx, ry, rw, rh);
 
-        // Neon outline
         ctx.setLineDash([]);
-        ctx.strokeStyle = '#8B03FD';
+        ctx.strokeStyle = '#615fff';
         ctx.lineWidth = 1.5;
         ctx.strokeRect(rx, ry, rw, rh);
 
-        // Cyber index tag
-        ctx.fillStyle = '#8B03FD';
+        ctx.fillStyle = '#615fff';
         ctx.fillRect(rx, ry, 18, 14);
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 9px monospace';
@@ -479,12 +481,11 @@ function AreaCard({
         const rw = temp.width * scaleX;
         const rh = temp.height * scaleY;
 
-        // Cyan active highlight
-        ctx.fillStyle = 'rgba(0, 229, 255, 0.18)';
+        ctx.fillStyle = 'rgba(46, 205, 131, 0.2)';
         ctx.fillRect(rx, ry, rw, rh);
 
         ctx.setLineDash([4, 3]);
-        ctx.strokeStyle = '#00e5ff';
+        ctx.strokeStyle = '#2ecd83';
         ctx.lineWidth = 1.5;
         ctx.strokeRect(rx, ry, rw, rh);
       }
@@ -553,19 +554,19 @@ function AreaCard({
   };
 
   return (
-    <div className="border border-[#262634] bg-[#09090e] p-4 flex flex-col gap-4 shadow-sm relative group">
+    <div className="border border-(--line) bg-(--panel) p-4 flex flex-col gap-4 shadow-sm relative group rounded-2xl">
       {/* Top Card Title & Tools */}
-      <div className="flex items-center justify-between gap-3 border-b border-[#1c1c26] pb-3">
+      <div className="flex items-center justify-between gap-3 border-b border-(--line) pb-3">
         <div className="min-w-0 flex items-center gap-2">
-          <FileText size={15} className="text-[#bd5aff] shrink-0" />
+          <FileText size={15} className="text-(--accent) shrink-0" />
           <div className="min-w-0">
             <h3
-              className="text-xs font-bold font-mono text-white truncate max-w-[260px] sm:max-w-[340px]"
+              className="text-xs font-bold font-mono text-(--text) truncate max-w-[260px] sm:max-w-[340px]"
               title={card.name}
             >
               {card.name}
             </h3>
-            <span className="text-[10px] font-mono text-[#666674]">
+            <span className="text-[10px] font-mono text-(--muted)">
               {formatFileSize(card.size)} · {card.naturalWidth}×{card.naturalHeight} px
             </span>
           </div>
@@ -574,22 +575,22 @@ function AreaCard({
         <button
           onClick={onRemove}
           title="Удалить карточку"
-          className="p-1 text-[#666672] hover:text-[#ff4466] hover:bg-[#1f1015] border border-transparent hover:border-[#ff4466]/40 transition-colors cursor-pointer"
+          className="p-1.5 text-(--muted) hover:text-(--danger) hover:bg-(--elevated) border border-transparent hover:border-(--line) rounded-lg transition-colors cursor-pointer"
         >
           <Trash2 size={14} />
         </button>
       </div>
 
-      {/* Interactive Canvas Container with Cyber Grid Background */}
+      {/* Interactive Canvas Container */}
       <div
         ref={containerRef}
-        className="relative w-full h-[300px] sm:h-[340px] bg-[#040407] border border-[#20202c] overflow-hidden flex items-center justify-center cursor-crosshair select-none"
+        className="relative w-full h-[300px] sm:h-[340px] bg-(--elevated) border border-(--line) overflow-hidden flex items-center justify-center cursor-crosshair select-none rounded-xl"
         style={{
           backgroundImage: `
-            linear-gradient(45deg, #0a0a10 25%, transparent 25%),
-            linear-gradient(-45deg, #0a0a10 25%, transparent 25%),
-            linear-gradient(45deg, transparent 75%, #0a0a10 75%),
-            linear-gradient(-45deg, transparent 75%, #0a0a10 75%)
+            linear-gradient(45deg, var(--line) 25%, transparent 25%),
+            linear-gradient(-45deg, var(--line) 25%, transparent 25%),
+            linear-gradient(45deg, transparent 75%, var(--line) 75%),
+            linear-gradient(-45deg, transparent 75%, var(--line) 75%)
           `,
           backgroundSize: '16px 16px',
           backgroundPosition: '0 0, 0 8px, 8px -8px, -8px 0',
@@ -612,40 +613,40 @@ function AreaCard({
 
         {/* Small instruction helper badge in corner */}
         <div className="absolute bottom-2 left-2 z-20 pointer-events-none">
-          <span className="px-2 py-0.5 bg-[#050508]/85 border border-[#222230] text-[9px] font-mono text-[#8c8c9a] backdrop-blur-xs flex items-center gap-1">
-            <Crosshair size={10} className="text-[#8B03FD]" /> Зажмите ЛКМ и выделите область
+          <span className="px-2.5 py-1 bg-(--panel)/90 border border-(--line) text-[10px] font-mono text-(--muted) backdrop-blur-xs flex items-center gap-1.5 rounded-md shadow-sm">
+            <Crosshair size={11} className="text-(--accent)" /> Зажмите ЛКМ и выделите область
           </span>
         </div>
       </div>
 
       {/* Stats Breakdown Row */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 font-mono text-xs">
-        <div className="bg-[#050508] border border-[#1e1e28] p-2.5">
-          <span className="text-[10px] text-[#6c6c78] block">ОБЩАЯ ПЛОЩАДЬ</span>
-          <span className="text-white font-bold text-xs truncate block" title={`${totalArea} px²`}>
+        <div className="bg-(--elevated) border border-(--line) p-2.5 rounded-lg">
+          <span className="text-[10px] text-(--muted) block">ОБЩАЯ ПЛОЩАДЬ</span>
+          <span className="text-(--text) font-bold text-xs truncate block" title={`${totalArea} px²`}>
             {totalArea.toLocaleString('ru-RU')} px²
           </span>
         </div>
 
-        <div className="bg-[#050508] border border-[#1e1e28] p-2.5">
-          <span className="text-[10px] text-[#6c6c78] block">ВЫДЕЛЕНО</span>
-          <span className="text-[#00e5ff] font-bold text-xs truncate block" title={`${selectedArea.toFixed(1)} px²`}>
+        <div className="bg-(--elevated) border border-(--line) p-2.5 rounded-lg">
+          <span className="text-[10px] text-(--muted) block">ВЫДЕЛЕНО</span>
+          <span className="text-(--accent) font-bold text-xs truncate block" title={`${selectedArea.toFixed(1)} px²`}>
             {selectedArea.toLocaleString('ru-RU', { maximumFractionDigits: 1 })} px²
           </span>
         </div>
 
-        <div className="bg-[#050508] border border-[#1e1e28] p-2.5 col-span-2 sm:col-span-1">
-          <span className="text-[10px] text-[#6c6c78] block">ОБЛАСТЕЙ</span>
-          <span className="text-white font-bold text-xs">
+        <div className="bg-(--elevated) border border-(--line) p-2.5 col-span-2 sm:col-span-1 rounded-lg">
+          <span className="text-[10px] text-(--muted) block">ОБЛАСТЕЙ</span>
+          <span className="text-(--text) font-bold text-xs">
             {card.rectangles.length} шт
           </span>
         </div>
       </div>
 
-      {/* Coverage Status Bar - Big, Clear & High Contrast */}
-      <div className={`border p-3 sm:p-3.5 flex items-center justify-between gap-3 ${badge.bg} ${badge.border}`}>
+      {/* Coverage Status Bar */}
+      <div className={`border p-3.5 flex items-center justify-between gap-3 rounded-xl ${badge.bg} ${badge.border}`}>
         <div>
-          <span className="text-[10px] font-mono text-[#888894] uppercase tracking-wider block">
+          <span className="text-[10px] font-mono text-(--muted) uppercase tracking-wider block">
             ПОКРЫТИЕ ТЕКСТОМ / ЭЛЕМЕНТАМИ
           </span>
           <div className={`text-sm sm:text-base font-bold font-sans mt-0.5 ${badge.textColor}`}>
@@ -661,29 +662,29 @@ function AreaCard({
 
       {/* Visual Progress Bar */}
       <div className="space-y-1">
-        <div className="h-1.5 w-full bg-[#14141c] overflow-hidden rounded-full border border-[#222230]">
+        <div className="h-2 w-full bg-(--elevated) overflow-hidden rounded-full border border-(--line)">
           <div
             className="h-full transition-all duration-300 rounded-full"
             style={{
               width: `${Math.min(percent, 100)}%`,
               background:
                 percent <= 20
-                  ? 'linear-gradient(90deg, #8B03FD, #00ff9d)'
+                  ? 'var(--success)'
                   : percent <= 30
-                  ? 'linear-gradient(90deg, #8B03FD, #ffd000)'
-                  : 'linear-gradient(90deg, #8B03FD, #ff3366)',
+                  ? 'rgb(245, 158, 11)'
+                  : 'var(--danger)',
             }}
           />
         </div>
       </div>
 
       {/* Action Buttons Row */}
-      <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-[#1a1a24] font-mono text-xs">
-        <div className="flex items-center gap-1.5">
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-(--line) font-mono text-xs">
+        <div className="flex items-center gap-2">
           <button
             onClick={onUndo}
             disabled={card.rectangles.length === 0}
-            className="px-2.5 py-1 bg-[#0c0c14] border border-[#242432] text-[#8e8e9c] hover:text-white hover:border-[#8B03FD] disabled:opacity-30 disabled:pointer-events-none transition-colors flex items-center gap-1 cursor-pointer text-[11px]"
+            className="px-2.5 py-1 bg-(--elevated) border border-(--line) text-(--muted) hover:text-(--text) hover:border-(--accent) disabled:opacity-30 disabled:pointer-events-none transition-colors flex items-center gap-1 rounded-md text-[11px]"
             title="Отменить последнее выделение"
           >
             <Undo2 size={11} /> Отменить
@@ -692,19 +693,21 @@ function AreaCard({
           <button
             onClick={onReset}
             disabled={card.rectangles.length === 0}
-            className="px-2.5 py-1 bg-[#0c0c14] border border-[#242432] text-[#8e8e9c] hover:text-[#ff4070] hover:border-[#ff4070]/50 disabled:opacity-30 disabled:pointer-events-none transition-colors flex items-center gap-1 cursor-pointer text-[11px]"
+            className="px-2.5 py-1 bg-(--elevated) border border-(--line) text-(--muted) hover:text-(--danger) hover:border-(--danger) disabled:opacity-30 disabled:pointer-events-none transition-colors flex items-center gap-1 rounded-md text-[11px]"
             title="Сбросить все выделенные области"
           >
             <RotateCcw size={11} /> Сбросить
           </button>
         </div>
 
-        <span className="text-[10px] text-[#555] font-mono">
+        <span className="text-[10px] text-(--muted) font-mono">
           {card.rectangles.length > 0
-            ? `Выделено фрагментов: ${card.rectangles.length}`
+            ? `Выделено: ${card.rectangles.length}`
             : 'Области не заданы'}
         </span>
       </div>
     </div>
   );
 }
+
+export default AreaAnalyzerTool;

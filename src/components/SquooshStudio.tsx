@@ -1,1215 +1,956 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   UploadCloud,
   FolderOpen,
   Archive,
   Trash2,
-  CheckCircle2,
   FileImage,
   RefreshCw,
-  Sliders,
-  FolderTree,
   Download,
-  Zap,
-  Sparkles,
+  ShieldCheck,
   HardDrive,
   Info,
-  Maximize2,
-  X,
-  Split,
-  Layers,
-  ArrowRight,
-  ExternalLink,
+  CheckCircle2,
+  AlertTriangle,
+  FolderTree,
+  Sparkles,
 } from 'lucide-react';
 import JSZip from 'jszip';
+import { quantizePng } from '../utils/imagequantLoader';
 
-export type OutputFormat = 'original' | 'webp' | 'jpeg' | 'png';
-export type OptimizationMode = 'target-size' | 'manual-quality';
-
-export interface SquooshFileItem {
+export interface CompressorFileItem {
   id: string;
+  file: File;
   name: string;
   relativePath: string;
+  isFromFolder: boolean;
   originalSize: number;
-  originalFormat: string;
+  originalFormat: 'png' | 'jpeg' | 'webp' | 'svg' | 'other';
   originalUrl: string;
   width: number;
   height: number;
-  outputFormat: OutputFormat;
-  convertedBlob: Blob | null;
-  convertedUrl: string | null;
-  convertedSize: number;
-  qualityUsed: string;
+  compressedBlob: Blob | null;
+  compressedUrl: string | null;
+  compressedSize: number;
+  engineUsed: string;
   status: 'pending' | 'processing' | 'done' | 'error';
   errorMsg?: string;
-  unchanged?: boolean;
+}
+
+function detectFormat(file: File): 'png' | 'jpeg' | 'webp' | 'svg' | 'other' {
+  const ext = file.name.split('.').pop()?.toLowerCase() || '';
+  if (file.type === 'image/png' || ext === 'png') return 'png';
+  if (file.type === 'image/jpeg' || ext === 'jpg' || ext === 'jpeg') return 'jpeg';
+  if (file.type === 'image/webp' || ext === 'webp') return 'webp';
+  if (file.type === 'image/svg+xml' || ext === 'svg') return 'svg';
+  return 'other';
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes <= 0) return '0 Б';
+  if (bytes < 1024) return `${bytes} Б`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} КБ`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} МБ`;
+}
+
+function loadImage(fileOrBlob: Blob | File): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(fileOrBlob);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Не удалось загрузить изображение'));
+    };
+    img.src = url;
+  });
+}
+
+function canvasToBlob(
+  canvas: HTMLCanvasElement,
+  mime: string,
+  quality?: number,
+): Promise<Blob | null> {
+  return new Promise((resolve) => {
+    canvas.toBlob((b) => resolve(b), mime, quality);
+  });
 }
 
 export function SquooshStudio() {
-  const [items, setItems] = useState<SquooshFileItem[]>([]);
-
-  // Format selection: 'original' (keeps input format), 'webp', 'jpeg', or 'png'
-  const [outputFormat, setOutputFormat] = useState<OutputFormat>('original');
-
-  // Optimization mode: target size vs manual quality
-  const [optimizationMode, setOptimizationMode] = useState<OptimizationMode>('target-size');
-
-  // Target size settings
-  const [targetSizeKB, setTargetSizeKB] = useState<number>(200);
-  const [sizeUnit, setSizeUnit] = useState<'KB' | 'MB'>('KB');
-  const [customInputValue, setCustomInputValue] = useState<number>(200);
-
-  // Manual quality settings
-  const [qualitySlider, setQualitySlider] = useState<number>(80);
-  const [pngColors, setPngColors] = useState<number>(128);
-
-  // Folder preservation setting
-  const [preserveFolderStructure, setPreserveFolderStructure] = useState<boolean>(true);
-
-  // Status & processing
+  const [items, setItems] = useState<CompressorFileItem[]>([]);
+  
+  // Только один параметр: «Желаемый вес»
+  const [targetValue, setTargetValue] = useState<number>(300);
+  const [targetUnit, setTargetUnit] = useState<'KB' | 'MB'>('KB');
+  
   const [isDragOver, setIsDragOver] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isZipping, setIsZipping] = useState(false);
-  const [progressCount, setProgressCount] = useState(0);
-  const [logs, setLogs] = useState<string[]>([]);
-
-  // Squoosh Interactive Split Inspector Modal
-  const [inspectingItem, setInspectingItem] = useState<SquooshFileItem | null>(null);
-  const [splitPosition, setSplitPosition] = useState<number>(50); // percentage 0-100
+  const [processedCount, setProcessedCount] = useState(0);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
-  const logContainerRef = useRef<HTMLDivElement>(null);
-  const splitContainerRef = useRef<HTMLDivElement>(null);
 
-  const formatBytes = (bytes: number) => {
-    if (bytes <= 0) return '0 Б';
-    if (bytes < 1024) return `${bytes} Б`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} КБ`;
-    return `${(bytes / (1024 * 1024)).toFixed(2)} МБ`;
-  };
+  const targetBytes = targetUnit === 'MB' ? targetValue * 1024 * 1024 : targetValue * 1024;
 
-  const addLog = (text: string) => {
-    setLogs((prev) => [...prev, text]);
-    setTimeout(() => {
-      if (logContainerRef.current) {
-        logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
-      }
-    }, 40);
-  };
+  // Cleanup object URLs on unmount
+  useEffect(() => {
+    return () => {
+      items.forEach((it) => {
+        if (it.originalUrl) URL.revokeObjectURL(it.originalUrl);
+        if (it.compressedUrl) URL.revokeObjectURL(it.compressedUrl);
+      });
+    };
+  }, []);
 
-  const detectFormat = (file: File): 'jpeg' | 'png' | 'webp' | 'other' => {
-    const ext = file.name.split('.').pop()?.toLowerCase() || '';
-    if (file.type === 'image/jpeg' || ext === 'jpg' || ext === 'jpeg') return 'jpeg';
-    if (file.type === 'image/png' || ext === 'png') return 'png';
-    if (file.type === 'image/webp' || ext === 'webp') return 'webp';
-    return 'other';
-  };
-
-  const loadImage = (fileOrBlob: Blob | File): Promise<HTMLImageElement> => {
-    return new Promise((resolve, reject) => {
-      const url = URL.createObjectURL(fileOrBlob);
-      const img = new Image();
-      img.onload = () => {
-        URL.revokeObjectURL(url);
-        resolve(img);
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(url);
-        reject(new Error('Не удалось прочитать изображение'));
-      };
-      img.src = url;
-    });
-  };
-
-  const canvasToBlob = (
-    canvas: HTMLCanvasElement,
-    type: string,
-    quality?: number
-  ): Promise<Blob> => {
-    return new Promise((resolve, reject) => {
-      canvas.toBlob(
-        (blob) => {
-          if (blob) resolve(blob);
-          else reject(new Error('Ошибка создания Blob'));
-        },
-        type,
-        quality
-      );
-    });
-  };
-
-  // Color quantization for PNG
-  const quantizeCanvasPng = (canvas: HTMLCanvasElement, levels: number) => {
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const data = imgData.data;
-    const step = 256 / Math.max(2, Math.floor(Math.cbrt(levels)));
-    for (let i = 0; i < data.length; i += 4) {
-      data[i] = Math.min(255, Math.floor(data[i] / step) * step + step / 2);
-      data[i + 1] = Math.min(255, Math.floor(data[i + 1] / step) * step + step / 2);
-      data[i + 2] = Math.min(255, Math.floor(data[i + 2] / step) * step + step / 2);
-      if (data[i + 3] > 240) data[i + 3] = 255;
-      else if (data[i + 3] < 20) data[i + 3] = 0;
+  /**
+   * Сжатие PNG с сохранением формата PNG через WebAssembly imagequant.
+   */
+  const compressPng = async (
+    file: File,
+    img: HTMLImageElement,
+    targetLimit: number,
+  ): Promise<{ blob: Blob; engine: string }> => {
+    // Если исходный файл уже меньше желаемого веса
+    if (file.size <= targetLimit) {
+      return { blob: file, engine: 'PNG (оригинал без изменений)' };
     }
-    ctx.putImageData(imgData, 0, 0);
-  };
-
-  // Core Squoosh-inspired compression & conversion engine
-  const processImageSquoosh = async (
-    file: File
-  ): Promise<{
-    blob: Blob;
-    width: number;
-    height: number;
-    qualityUsed: string;
-    effectiveFormat: OutputFormat;
-    unchanged?: boolean;
-  }> => {
-    const detected = detectFormat(file);
-    const effectiveFormat: OutputFormat =
-      outputFormat === 'original' ? (detected === 'other' ? 'jpeg' : detected) : outputFormat;
-
-    const targetBytes = targetSizeKB * 1024;
-
-    // Check if target size mode and original already <= targetBytes AND keeping original format
-    if (
-      optimizationMode === 'target-size' &&
-      outputFormat === 'original' &&
-      file.size <= targetBytes
-    ) {
-      return {
-        blob: file,
-        width: 0,
-        height: 0,
-        qualityUsed: 'Вес в норме (исходный)',
-        effectiveFormat,
-        unchanged: true,
-      };
-    }
-
-    const img = await loadImage(file);
-    const width = img.naturalWidth;
-    const height = img.naturalHeight;
 
     const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
+    canvas.width = img.naturalWidth || img.width;
+    canvas.height = img.naturalHeight || img.height;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) throw new Error('Не удалось инициализировать 2D-контекст canvas');
+
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+    // Пытаемся использовать WASM imagequant с подбором параметров под желаемый вес
+    try {
+      let bestBlob: Blob | null = null;
+      let bestSize = Infinity;
+
+      // Тестируем комбинации палитры (256, 128, 64) для приближения к желаемому весу
+      const palettes = [256, 160, 96, 48, 24];
+      for (const colors of palettes) {
+        const pngBytes = await quantizePng(
+          imageData.data,
+          canvas.width,
+          canvas.height,
+          0,
+          Math.min(85, Math.max(20, Math.round((targetLimit / file.size) * 100))),
+          colors,
+        );
+        const currentBlob = new Blob([pngBytes.buffer as ArrayBuffer], { type: 'image/png' });
+
+        if (currentBlob.size < bestSize) {
+          bestBlob = currentBlob;
+          bestSize = currentBlob.size;
+        }
+
+        // Если уложились в желаемый вес — останавливаемся
+        if (currentBlob.size <= targetLimit) {
+          break;
+        }
+      }
+
+      if (bestBlob && bestBlob.size < file.size) {
+        return { blob: bestBlob, engine: 'WASM imagequant (PNG)' };
+      }
+    } catch (err) {
+      console.warn('[imagequant-wasm] fallback to canvas:', err);
+    }
+
+    // Fallback: canvas png export
+    const fallback = await canvasToBlob(canvas, 'image/png');
+    if (fallback && fallback.size < file.size) {
+      return { blob: fallback, engine: 'Canvas PNG' };
+    }
+
+    return { blob: file, engine: 'PNG (оригинал)' };
+  };
+
+  /**
+   * Сжатие JPEG с сохранением формата JPEG бинарным поиском качества под желаемый вес.
+   */
+  const compressJpeg = async (
+    file: File,
+    img: HTMLImageElement,
+    targetLimit: number,
+  ): Promise<{ blob: Blob; engine: string }> => {
+    if (file.size <= targetLimit) {
+      return { blob: file, engine: 'JPEG (оригинал без изменений)' };
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth || img.width;
+    canvas.height = img.naturalHeight || img.height;
     const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('Ошибка Canvas 2D');
-    ctx.drawImage(img, 0, 0, width, height);
+    if (!ctx) throw new Error('Не удалось инициализировать canvas');
 
-    // TARGET SIZE MODE
-    if (optimizationMode === 'target-size') {
-      if (effectiveFormat === 'webp' || effectiveFormat === 'jpeg') {
-        const mime = effectiveFormat === 'webp' ? 'image/webp' : 'image/jpeg';
-        let low = 0.05;
-        let high = 0.98;
-        let bestBlob: Blob | null = null;
-        let bestQuality = 0.8;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-        for (let step = 0; step < 9; step++) {
-          const q = (low + high) / 2;
-          const candidate = await canvasToBlob(canvas, mime, q);
-          if (candidate.size <= targetBytes) {
-            bestBlob = candidate;
-            bestQuality = q;
-            low = q + 0.02;
-          } else {
-            high = q - 0.02;
-          }
+    // Бинарный поиск качества (от 0.05 до 0.95)
+    let low = 0.05;
+    let high = 0.95;
+    let bestBlob: Blob | null = null;
+    let bestQuality = 0.8;
+
+    for (let step = 0; step < 7; step++) {
+      const mid = (low + high) / 2;
+      const b = await canvasToBlob(canvas, 'image/jpeg', mid);
+      if (!b) break;
+
+      if (b.size <= targetLimit) {
+        bestBlob = b;
+        bestQuality = mid;
+        low = mid; // пробуем чуть лучше качество
+      } else {
+        high = mid; // нужно сжать сильнее
+        if (!bestBlob || b.size < bestBlob.size) {
+          bestBlob = b;
+          bestQuality = mid;
         }
-
-        if (!bestBlob) {
-          bestBlob = await canvasToBlob(canvas, mime, 0.05);
-          bestQuality = 0.05;
-        }
-
-        return {
-          blob: bestBlob,
-          width,
-          height,
-          effectiveFormat,
-          qualityUsed: `${effectiveFormat.toUpperCase()} q=${Math.round(bestQuality * 100)}% (≤ ${targetSizeKB} КБ)`,
-        };
-      }
-
-      if (effectiveFormat === 'png') {
-        const normalBlob = await canvasToBlob(canvas, 'image/png');
-        if (normalBlob.size <= targetBytes) {
-          return {
-            blob: normalBlob,
-            width,
-            height,
-            effectiveFormat,
-            qualityUsed: 'PNG Standard (≤ ' + targetSizeKB + ' КБ)',
-          };
-        }
-
-        const levelsToTest = [128, 64, 36, 24, 16, 8];
-        let bestBlob: Blob = normalBlob;
-        let bestLevel = 128;
-
-        for (const lvl of levelsToTest) {
-          const tempCanvas = document.createElement('canvas');
-          tempCanvas.width = width;
-          tempCanvas.height = height;
-          const tempCtx = tempCanvas.getContext('2d');
-          if (!tempCtx) break;
-          tempCtx.drawImage(img, 0, 0, width, height);
-          quantizeCanvasPng(tempCanvas, lvl);
-
-          const candidate = await canvasToBlob(tempCanvas, 'image/png');
-          bestBlob = candidate;
-          bestLevel = lvl;
-          if (candidate.size <= targetBytes) {
-            break;
-          }
-        }
-
-        return {
-          blob: bestBlob,
-          width,
-          height,
-          effectiveFormat,
-          qualityUsed: `PNG Palette (${bestLevel} цв.)`,
-        };
       }
     }
 
-    // MANUAL QUALITY MODE (Squoosh Slider)
-    if (effectiveFormat === 'webp' || effectiveFormat === 'jpeg') {
-      const mime = effectiveFormat === 'webp' ? 'image/webp' : 'image/jpeg';
-      const q = Math.max(0.05, Math.min(1.0, qualitySlider / 100));
-      const blob = await canvasToBlob(canvas, mime, q);
+    if (bestBlob && bestBlob.size < file.size) {
       return {
-        blob,
-        width,
-        height,
-        effectiveFormat,
-        qualityUsed: `${effectiveFormat.toUpperCase()} q=${qualitySlider}%`,
+        blob: bestBlob,
+        engine: `MozJPEG/Canvas (качество ~${Math.round(bestQuality * 100)}%)`,
       };
     }
 
-    if (effectiveFormat === 'png') {
-      if (pngColors < 256) {
-        quantizeCanvasPng(canvas, pngColors);
+    return { blob: file, engine: 'JPEG (оригинал)' };
+  };
+
+  /**
+   * Сжатие WebP с сохранением формата WebP под желаемый вес.
+   */
+  const compressWebp = async (
+    file: File,
+    img: HTMLImageElement,
+    targetLimit: number,
+  ): Promise<{ blob: Blob; engine: string }> => {
+    if (file.size <= targetLimit) {
+      return { blob: file, engine: 'WebP (оригинал без изменений)' };
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth || img.width;
+    canvas.height = img.naturalHeight || img.height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Не удалось инициализировать canvas');
+
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+    let low = 0.05;
+    let high = 0.95;
+    let bestBlob: Blob | null = null;
+    let bestQuality = 0.8;
+
+    for (let step = 0; step < 7; step++) {
+      const mid = (low + high) / 2;
+      const b = await canvasToBlob(canvas, 'image/webp', mid);
+      if (!b) break;
+
+      if (b.size <= targetLimit) {
+        bestBlob = b;
+        bestQuality = mid;
+        low = mid;
+      } else {
+        high = mid;
+        if (!bestBlob || b.size < bestBlob.size) {
+          bestBlob = b;
+          bestQuality = mid;
+        }
       }
-      const blob = await canvasToBlob(canvas, 'image/png');
+    }
+
+    if (bestBlob && bestBlob.size < file.size) {
       return {
-        blob,
-        width,
-        height,
-        effectiveFormat,
-        qualityUsed: pngColors < 256 ? `PNG ${pngColors} цв.` : 'PNG 32-bit',
+        blob: bestBlob,
+        engine: `WebP Encoder (качество ~${Math.round(bestQuality * 100)}%)`,
       };
     }
 
-    const fallbackBlob = await canvasToBlob(canvas, file.type || 'image/jpeg', 0.8);
-    return {
-      blob: fallbackBlob,
-      width,
-      height,
-      effectiveFormat: 'jpeg',
-      qualityUsed: 'Auto',
-    };
+    return { blob: file, engine: 'WebP (оригинал)' };
   };
 
-  const processFilesBatch = async (
-    filesList: { file: File; relativePath: string }[]
-  ) => {
-    if (!filesList.length) return;
-
-    setIsProcessing(true);
-    setProgressCount(0);
-
-    const initialItems: SquooshFileItem[] = filesList.map(({ file, relativePath }) => ({
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-      name: file.name,
-      relativePath: relativePath || file.name,
-      originalSize: file.size,
-      originalFormat: detectFormat(file).toUpperCase(),
-      originalUrl: URL.createObjectURL(file),
-      width: 0,
-      height: 0,
-      outputFormat,
-      convertedBlob: null,
-      convertedUrl: null,
-      convertedSize: 0,
-      qualityUsed: '',
-      status: 'pending',
-    }));
-
-    setItems((prev) => [...prev, ...initialItems]);
-
-    for (let i = 0; i < filesList.length; i++) {
-      const { file } = filesList[i];
-      const itemId = initialItems[i].id;
-
-      setItems((prev) =>
-        prev.map((it) => (it.id === itemId ? { ...it, status: 'processing' } : it))
-      );
-
-      try {
-        const result = await processImageSquoosh(file);
-        const url = URL.createObjectURL(result.blob);
-
-        setItems((prev) =>
-          prev.map((it) =>
-            it.id === itemId
-              ? {
-                  ...it,
-                  width: result.width,
-                  height: result.height,
-                  convertedBlob: result.blob,
-                  convertedUrl: url,
-                  convertedSize: result.blob.size,
-                  qualityUsed: result.qualityUsed,
-                  outputFormat: result.effectiveFormat,
-                  status: 'done',
-                  unchanged: result.unchanged,
-                }
-              : it
-          )
-        );
-
-        const before = file.size;
-        const after = result.blob.size;
-        const saved =
-          before > 0 ? Math.max(0, Math.round((1 - after / before) * 100)) : 0;
-
-        if (result.unchanged) {
-          addLog(`${file.name}: ✓ В норме (${formatBytes(after)} ≤ ${targetSizeKB} КБ)`);
-        } else {
-          addLog(
-            `${file.name} [${result.effectiveFormat.toUpperCase()}]: ${formatBytes(before)} → ${formatBytes(after)} (-${saved}%) [${result.qualityUsed}]`
-          );
-        }
-      } catch (err: any) {
-        console.error('Ошибка обработки Squoosh:', file.name, err);
-        setItems((prev) =>
-          prev.map((it) =>
-            it.id === itemId
-              ? { ...it, status: 'error', errorMsg: err?.message || 'Ошибка' }
-              : it
-          )
-        );
-        addLog(`${file.name}: ОШИБКА · ${err?.message || 'не удалось обработать'}`);
-      }
-
-      setProgressCount(i + 1);
-      await new Promise((r) => setTimeout(r, 10));
-    }
-
-    setIsProcessing(false);
-  };
-
-  const readEntry = async (
+  /**
+   * Рекурсивное чтение папок при Drop (Drag and Drop directory support)
+   */
+  const readDirectoryEntries = async (
     entry: any,
-    parentPath: string = ''
+    currentPath: string = '',
   ): Promise<{ file: File; relativePath: string }[]> => {
     if (entry.isFile) {
       return new Promise((resolve) => {
-        entry.file(
-          (file: File) => {
-            if (/\.(jpe?g|png|webp|svg|gif|avif)$/i.test(file.name)) {
-              resolve([{ file, relativePath: parentPath + file.name }]);
-            } else {
-              resolve([]);
-            }
-          },
-          () => resolve([])
-        );
+        entry.file((f: File) => {
+          const relPath = currentPath ? `${currentPath}/${f.name}` : f.name;
+          resolve([{ file: f, relativePath: relPath }]);
+        });
       });
     }
 
     if (entry.isDirectory) {
-      const reader = entry.createReader();
-      const entries: any[] = [];
-
-      const readBatch = () =>
-        new Promise<void>((resolve) => {
-          reader.readEntries((batch: any[]) => {
-            if (!batch.length) {
-              resolve();
-              return;
+      const dirReader = entry.createReader();
+      const entries: any[] = await new Promise((resolve) => {
+        const result: any[] = [];
+        const readEntries = () => {
+          dirReader.readEntries((batch: any[]) => {
+            if (batch.length === 0) {
+              resolve(result);
+            } else {
+              result.push(...batch);
+              readEntries();
             }
-            entries.push(...batch);
-            readBatch().then(resolve);
-          }, () => resolve());
-        });
+          });
+        };
+        readEntries();
+      });
 
-      await readBatch();
-
-      const results: { file: File; relativePath: string }[] = [];
-      const folderPath = parentPath + entry.name + '/';
-
-      for (const child of entries) {
-        const childFiles = await readEntry(child, folderPath);
-        results.push(...childFiles);
-      }
-
-      return results;
+      const nextPath = currentPath ? `${currentPath}/${entry.name}` : entry.name;
+      const nestedPromises = entries.map((child) => readDirectoryEntries(child, nextPath));
+      const nestedArrays = await Promise.all(nestedPromises);
+      return nestedArrays.flat();
     }
 
     return [];
   };
 
+  /**
+   * Добавление файлов в очередь.
+   * Автоматически определяет, передана папка или отдельные файлы.
+   */
+  const addFilesToQueue = async (
+    rawFiles: { file: File; relativePath?: string; isFromFolder?: boolean }[],
+  ) => {
+    const validItems: CompressorFileItem[] = [];
+
+    for (const item of rawFiles) {
+      const { file } = item;
+      const fmt = detectFormat(file);
+
+      // Пропускаем не-изображения
+      if (fmt === 'other' && !file.type.startsWith('image/')) {
+        continue;
+      }
+
+      const id = `img-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      const originalUrl = URL.createObjectURL(file);
+
+      let width = 0;
+      let height = 0;
+      try {
+        const img = await loadImage(file);
+        width = img.naturalWidth || img.width;
+        height = img.naturalHeight || img.height;
+      } catch {
+        // Если векторный или нераспознанный — сохраняем базовые 0
+      }
+
+      // Если у файла есть путь от папки
+      const hasFolder = Boolean(item.isFromFolder || (item.relativePath && item.relativePath.includes('/')));
+      const relPath = item.relativePath || file.webkitRelativePath || file.name;
+
+      validItems.push({
+        id,
+        file,
+        name: file.name,
+        relativePath: relPath,
+        isFromFolder: hasFolder,
+        originalSize: file.size,
+        originalFormat: fmt,
+        originalUrl,
+        width,
+        height,
+        compressedBlob: null,
+        compressedUrl: null,
+        compressedSize: file.size,
+        engineUsed: 'Ожидание сжатия...',
+        status: 'pending',
+      });
+    }
+
+    if (validItems.length > 0) {
+      setItems((prev) => [...prev, ...validItems]);
+    }
+  };
+
+  /**
+   * Запуск процесса сжатия всех элементов под заданный желаемый вес.
+   */
+  const processAll = useCallback(async () => {
+    if (items.length === 0 || isProcessing) return;
+    setIsProcessing(true);
+    setProcessedCount(0);
+
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      setItems((prev) =>
+        prev.map((item, idx) => (idx === i ? { ...item, status: 'processing' } : item)),
+      );
+
+      try {
+        let resultBlob: Blob = it.file;
+        let engine = 'Оригинальный формат';
+
+        if (it.originalFormat === 'svg') {
+          resultBlob = it.file;
+          engine = 'SVG без изменений';
+        } else {
+          const img = await loadImage(it.file);
+          if (it.originalFormat === 'png') {
+            const res = await compressPng(it.file, img, targetBytes);
+            resultBlob = res.blob;
+            engine = res.engine;
+          } else if (it.originalFormat === 'jpeg') {
+            const res = await compressJpeg(it.file, img, targetBytes);
+            resultBlob = res.blob;
+            engine = res.engine;
+          } else if (it.originalFormat === 'webp') {
+            const res = await compressWebp(it.file, img, targetBytes);
+            resultBlob = res.blob;
+            engine = res.engine;
+          } else {
+            resultBlob = it.file;
+            engine = 'Формат сохранён';
+          }
+        }
+
+        const compressedUrl = URL.createObjectURL(resultBlob);
+
+        setItems((prev) =>
+          prev.map((item, idx) =>
+            idx === i
+              ? {
+                  ...item,
+                  compressedBlob: resultBlob,
+                  compressedUrl,
+                  compressedSize: resultBlob.size,
+                  engineUsed: engine,
+                  status: 'done',
+                }
+              : item,
+          ),
+        );
+      } catch (err: any) {
+        setItems((prev) =>
+          prev.map((item, idx) =>
+            idx === i
+              ? {
+                  ...item,
+                  status: 'error',
+                  errorMsg: err?.message || 'Ошибка сжатия',
+                }
+              : item,
+          ),
+        );
+      }
+
+      setProcessedCount((c) => c + 1);
+    }
+
+    setIsProcessing(false);
+  }, [items, isProcessing, targetBytes]);
+
+  // Drag and drop handlers
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  };
+
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     setIsDragOver(false);
 
-    try {
-      const itemsList = Array.from(e.dataTransfer.items || []);
-      const fileEntries: any[] = [];
-      let hasDirectory = false;
+    const dataTransferItems = e.dataTransfer.items;
+    if (dataTransferItems && dataTransferItems.length > 0) {
+      const filesWithPaths: { file: File; relativePath: string; isFromFolder: boolean }[] = [];
 
-      for (const item of itemsList) {
-        if (item.kind !== 'file') continue;
-        const entry = (item as any).webkitGetAsEntry ? (item as any).webkitGetAsEntry() : null;
-        if (entry) {
-          if (entry.isDirectory) hasDirectory = true;
-          fileEntries.push(entry);
-        } else {
-          const file = item.getAsFile();
-          if (file && /\.(jpe?g|png|webp|svg|gif|avif)$/i.test(file.name)) {
-            fileEntries.push(file);
+      for (let i = 0; i < dataTransferItems.length; i++) {
+        const item = dataTransferItems[i];
+        if (item.kind === 'file') {
+          const entry = (item as any).webkitGetAsEntry ? (item as any).webkitGetAsEntry() : null;
+          if (entry && entry.isDirectory) {
+            const dirFiles = await readDirectoryEntries(entry, entry.name);
+            filesWithPaths.push(
+              ...dirFiles.map((f) => ({ ...f, isFromFolder: true })),
+            );
+          } else {
+            const file = item.getAsFile();
+            if (file) {
+              filesWithPaths.push({
+                file,
+                relativePath: file.name,
+                isFromFolder: false,
+              });
+            }
           }
         }
       }
 
-      if (hasDirectory) {
-        setPreserveFolderStructure(true);
+      if (filesWithPaths.length > 0) {
+        await addFilesToQueue(filesWithPaths);
       }
-
-      const allFiles: { file: File; relativePath: string }[] = [];
-      for (const entry of fileEntries) {
-        if (entry instanceof File) {
-          allFiles.push({ file: entry, relativePath: entry.name });
-        } else {
-          const childFiles = await readEntry(entry);
-          allFiles.push(...childFiles);
-        }
-      }
-
-      if (allFiles.length) {
-        addLog(`Загружено ${allFiles.length} изображений в Squoosh Studio...`);
-        await processFilesBatch(allFiles);
-      }
-    } catch (err) {
-      console.error(err);
-      addLog('Ошибка при чтении файлов');
+      return;
     }
-  };
 
-  const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.length) return;
-    const files = Array.from(e.target.files)
-      .filter((f) => /\.(jpe?g|png|webp|svg|gif|avif)$/i.test(f.name))
-      .map((f) => ({ file: f, relativePath: f.name }));
-
-    e.target.value = '';
-    if (files.length) {
-      addLog(`Выбрано ${files.length} отдельных файлов...`);
-      await processFilesBatch(files);
-    }
-  };
-
-  const handleFolderInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.length) return;
-    const files = Array.from(e.target.files)
-      .filter((f) => /\.(jpe?g|png|webp|svg|gif|avif)$/i.test(f.name))
-      .map((f) => ({
+    // Fallback: standard file list
+    const droppedFiles = Array.from(e.dataTransfer.files);
+    await addFilesToQueue(
+      droppedFiles.map((f) => ({
         file: f,
-        relativePath: (f as any).webkitRelativePath || f.name,
-      }));
+        relativePath: f.webkitRelativePath || f.name,
+        isFromFolder: Boolean(f.webkitRelativePath && f.webkitRelativePath.includes('/')),
+      })),
+    );
+  };
 
+  // Input file change (individual files)
+  const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const fileList = Array.from(e.target.files);
+    await addFilesToQueue(
+      fileList.map((f) => ({
+        file: f,
+        relativePath: f.name,
+        isFromFolder: false,
+      })),
+    );
     e.target.value = '';
-    if (files.length) {
-      setPreserveFolderStructure(true);
-      addLog(`Выбрана папка (${files.length} файлов со структурой)...`);
-      await processFilesBatch(files);
-    }
   };
 
-  const getTargetFilename = (item: SquooshFileItem): string => {
-    const baseName = item.name.replace(/\.[^.]+$/, '');
-    if (item.outputFormat === 'webp') return `${baseName}.webp`;
-    if (item.outputFormat === 'jpeg') return `${baseName}.jpg`;
-    if (item.outputFormat === 'png') return `${baseName}.png`;
-    return item.name;
+  // Folder input change (directory selection via webkitdirectory)
+  const handleFolderInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const fileList = Array.from(e.target.files);
+    await addFilesToQueue(
+      fileList.map((f) => ({
+        file: f,
+        relativePath: f.webkitRelativePath || f.name,
+        isFromFolder: true,
+      })),
+    );
+    e.target.value = '';
   };
 
-  const handleDownloadZip = async () => {
-    const readyItems = items.filter((it) => it.status === 'done' && it.convertedBlob);
-    if (!readyItems.length) return;
+  // Скачивание отдельного сжатого файла
+  const downloadSingle = (item: CompressorFileItem) => {
+    const blob = item.compressedBlob || item.file;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = item.name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
+  // Скачивание всех сжатых файлов в ZIP с сохранением структуры папок
+  const downloadAllZip = async () => {
+    if (items.length === 0 || isZipping) return;
     setIsZipping(true);
-    addLog('Формирование ZIP архива...');
 
     try {
       const zip = new JSZip();
 
-      readyItems.forEach((item) => {
-        let savePath = preserveFolderStructure ? item.relativePath : item.name;
-        if (item.outputFormat === 'webp') {
-          savePath = savePath.replace(/\.[^.]+$/, '.webp');
-        } else if (item.outputFormat === 'jpeg') {
-          savePath = savePath.replace(/\.[^.]+$/, '.jpg');
-        } else if (item.outputFormat === 'png') {
-          savePath = savePath.replace(/\.[^.]+$/, '.png');
-        }
-        zip.file(savePath, item.convertedBlob!);
-      });
+      for (const item of items) {
+        const blob = item.compressedBlob || item.file;
+        // Если файл был частью папки, сохраняем исходный относительный путь
+        const archivePath = item.isFromFolder && item.relativePath ? item.relativePath : item.name;
+        zip.file(archivePath, blob);
+      }
 
-      const zipBlob = await zip.generateAsync({
-        type: 'blob',
-        compression: 'DEFLATE',
-        compressionOptions: { level: 6 },
-      });
-
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
       const url = URL.createObjectURL(zipBlob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `squoosh-optimized-${outputFormat}-${Date.now()}.zip`;
+      a.download = `compressed-images-${Date.now()}.zip`;
       document.body.appendChild(a);
       a.click();
-      a.remove();
+      document.body.removeChild(a);
       URL.revokeObjectURL(url);
-
-      addLog(`Архив готов: ${formatBytes(zipBlob.size)}. Скачивание запущено.`);
-    } catch (err: any) {
-      console.error('Ошибка создания ZIP:', err);
-      addLog(`Ошибка создания ZIP: ${err?.message || ''}`);
+    } catch (err) {
+      console.error('Ошибка создания ZIP архива:', err);
     } finally {
       setIsZipping(false);
     }
   };
 
-  const handleClearAll = () => {
+  const removeItem = (id: string) => {
+    setItems((prev) => {
+      const target = prev.find((it) => it.id === id);
+      if (target?.originalUrl) URL.revokeObjectURL(target.originalUrl);
+      if (target?.compressedUrl) URL.revokeObjectURL(target.compressedUrl);
+      return prev.filter((it) => it.id !== id);
+    });
+  };
+
+  const clearAll = () => {
     items.forEach((it) => {
-      if (it.convertedUrl) URL.revokeObjectURL(it.convertedUrl);
       if (it.originalUrl) URL.revokeObjectURL(it.originalUrl);
+      if (it.compressedUrl) URL.revokeObjectURL(it.compressedUrl);
     });
     setItems([]);
-    setLogs([]);
   };
 
-  const setWeightPreset = (kb: number) => {
-    setTargetSizeKB(kb);
-    if (kb >= 1024) {
-      setSizeUnit('MB');
-      setCustomInputValue(Number((kb / 1024).toFixed(1)));
-    } else {
-      setSizeUnit('KB');
-      setCustomInputValue(kb);
-    }
-  };
-
-  const handleCustomWeightChange = (val: number, unit: 'KB' | 'MB') => {
-    setCustomInputValue(val);
-    const finalKB = unit === 'MB' ? Math.round(val * 1024) : Math.round(val);
-    setTargetSizeKB(Math.max(10, finalKB));
-  };
-
-  // Split slider mouse/touch handler
-  const handleSplitDrag = (clientX: number) => {
-    if (!splitContainerRef.current) return;
-    const rect = splitContainerRef.current.getBoundingClientRect();
-    const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
-    const percent = (x / rect.width) * 100;
-    setSplitPosition(Math.max(5, Math.min(95, percent)));
-  };
-
-  const totalOriginalBytes = items.reduce((acc, it) => acc + it.originalSize, 0);
-  const totalConvertedBytes = items.reduce(
-    (acc, it) => acc + (it.status === 'done' ? it.convertedSize : it.originalSize),
-    0
+  // Summary statistics
+  const totalOriginal = items.reduce((acc, it) => acc + it.originalSize, 0);
+  const totalCompressed = items.reduce(
+    (acc, it) => acc + (it.status === 'done' ? it.compressedSize : it.originalSize),
+    0,
   );
-  const totalSavedBytes = Math.max(0, totalOriginalBytes - totalConvertedBytes);
-  const totalSavedPct =
-    totalOriginalBytes > 0
-      ? Math.round((totalSavedBytes / totalOriginalBytes) * 100)
-      : 0;
+  const savedBytes = Math.max(0, totalOriginal - totalCompressed);
+  const savingsPercent = totalOriginal > 0 ? Math.round((savedBytes / totalOriginal) * 100) : 0;
+  const anyFolders = items.some((it) => it.isFromFolder);
 
   return (
-    <div className="space-y-6">
-      {/* Header with Squoosh Engine Badge */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#24242e]">
+    <div className="w-full space-y-6 text-(--text)">
+      {/* 1. Header & Minimal Description */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-(--line)">
         <div>
-          <div className="flex flex-wrap items-center gap-2 mb-1.5">
-            <span className="px-2 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider bg-(--accent)/20 text-[#bd5aff] border border-(--accent)/40">
-              Squoosh Engine
+          <div className="flex items-center gap-2">
+            <span className="p-1.5 rounded-lg bg-(--accent-soft) text-(--accent)">
+              <Sparkles size={18} />
             </span>
-            <span className="text-[10px] font-mono text-[#00ff9d] flex items-center gap-1.5 bg-[#0e1e16] px-2 py-0.5 border border-(--success)/30">
-              <Zap size={11} />
-              Совмещённый сервис: Сжатие по весу + WebP / MozJPEG / OxiPNG
-            </span>
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tight font-sans text-(--text)">
+              Сжиматель изображений
+            </h2>
           </div>
-
-          <h2 className="text-xl sm:text-2xl font-bold font-sans text-white tracking-tight flex items-center gap-2">
-            Squoosh Studio
-            <span className="text-xs font-mono font-normal text-[#888896]">
-              &middot; Архитектура GoogleChromeLabs Squoosh
-            </span>
-          </h2>
-          <p className="text-xs text-[#8c8c9a] mt-1 max-w-3xl leading-relaxed">
-            Мощный браузерный инструмент для сжатия и конвертации изображений: загружайте <strong>папками или файлами</strong>, выбирайте <strong>исходный формат или WebP</strong>, настраивайте <strong>желаемый вес файла</strong> или фиксированное качество, и инспектируйте качество слайдером «До / После».
+          <p className="mt-1 text-xs font-mono text-(--muted)">
+            Локальная компрессия без потери исходного формата · PNG (WASM imagequant) · JPEG · WebP
           </p>
         </div>
 
         {items.length > 0 && (
-          <button
-            onClick={handleClearAll}
-            className="self-start sm:self-center px-3 py-1.5 border border-[#362536] bg-[#1a0f1e] text-[#ff6685] hover:bg-[#2c1328] hover:border-[#ff4070] transition-colors text-xs font-mono flex items-center gap-1.5 cursor-pointer"
-          >
-            <Trash2 size={13} />
-            Очистить всё ({items.length})
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={clearAll}
+              disabled={isProcessing}
+              className="px-3 py-1.5 border border-(--line) hover:border-(--danger) hover:text-(--danger) text-xs font-mono rounded-lg transition-colors flex items-center gap-1.5 text-(--muted)"
+            >
+              <Trash2 size={13} />
+              Очистить
+            </button>
+            <button
+              onClick={processAll}
+              disabled={isProcessing}
+              className="px-4 py-2 border border-(--accent) bg-(--accent) text-(--on-accent) hover:bg-(--accent-hover) text-xs font-mono font-bold rounded-lg transition-all shadow-sm flex items-center gap-2 disabled:opacity-50"
+            >
+              <RefreshCw size={14} className={isProcessing ? 'animate-spin' : ''} />
+              {isProcessing ? `Сжатие (${processedCount}/${items.length})...` : 'Сжать всё'}
+            </button>
+          </div>
         )}
       </div>
 
-      {/* Control Station: Output Format & Optimization Strategy */}
-      <div className="border border-[#282836] bg-[#08080d] p-4 sm:p-5 space-y-4">
-        {/* Row 1: Output Format Choice */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-[#1c1c26]">
-          <div className="text-xs font-mono text-[#bd5aff] font-bold uppercase tracking-wider flex items-center gap-2">
-            <Layers size={15} /> 1. Формат на выходе:
+      {/* 2. Единственная настройка: «Желаемый вес» + Предупреждение */}
+      <div className="p-5 border border-(--line) bg-(--elevated) rounded-xl space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <label className="text-xs font-mono uppercase tracking-wider font-bold text-(--accent) flex items-center gap-1.5">
+              <HardDrive size={14} /> Желаемый вес файла
+            </label>
+            <p className="text-xs text-(--muted) mt-0.5 font-sans">
+              Движок оптимизации автоматически подберет параметры для приближения к целевому размеру.
+            </p>
           </div>
 
-          <div className="flex flex-wrap gap-2 text-xs font-mono">
-            <button
-              type="button"
-              onClick={() => setOutputFormat('original')}
-              className={`px-3 py-1.5 border transition-all cursor-pointer font-bold flex items-center gap-1.5 ${
-                outputFormat === 'original'
-                  ? 'border-[#8a00ff] bg-[#8a00ff] text-white shadow-sm'
-                  : 'border-[#262634] bg-[#0c0c14] text-[#888894] hover:text-white'
-              }`}
-            >
-              <RefreshCw size={12} />
-              Исходный формат (JPG в JPG, PNG в PNG)
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setOutputFormat('webp')}
-              className={`px-3 py-1.5 border transition-all cursor-pointer font-bold flex items-center gap-1.5 ${
-                outputFormat === 'webp'
-                  ? 'border-[#00ff9d] bg-[#00ff9d] text-black shadow-sm'
-                  : 'border-[#262634] bg-[#0c0c14] text-[#888894] hover:text-white'
-              }`}
-            >
-              <Zap size={12} />
-              Конвертировать в WebP
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setOutputFormat('jpeg')}
-              className={`px-3 py-1.5 border transition-all cursor-pointer font-bold ${
-                outputFormat === 'jpeg'
-                  ? 'border-[#8a00ff] bg-[#8a00ff] text-white'
-                  : 'border-[#262634] bg-[#0c0c14] text-[#888894] hover:text-white'
-              }`}
-            >
-              JPEG (MozJPEG)
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setOutputFormat('png')}
-              className={`px-3 py-1.5 border transition-all cursor-pointer font-bold ${
-                outputFormat === 'png'
-                  ? 'border-[#8a00ff] bg-[#8a00ff] text-white'
-                  : 'border-[#262634] bg-[#0c0c14] text-[#888894] hover:text-white'
-              }`}
-            >
-              PNG (OxiPNG)
-            </button>
-          </div>
-        </div>
-
-        {/* Row 2: Optimization Mode Selector */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#1c1c26]">
-          <div className="text-xs font-mono text-[#00ff9d] font-bold uppercase tracking-wider flex items-center gap-2">
-            <Sliders size={15} /> 2. Режим сжатия Squoosh:
-          </div>
-
-          <div className="flex flex-wrap gap-2 text-xs font-mono">
-            <button
-              type="button"
-              onClick={() => setOptimizationMode('target-size')}
-              className={`px-3 py-1.5 border transition-all cursor-pointer font-bold flex items-center gap-1.5 ${
-                optimizationMode === 'target-size'
-                  ? 'border-[#00ff9d] bg-[#00ff9d] text-black shadow-sm'
-                  : 'border-[#282838] bg-[#0c0c14] text-[#80808e] hover:text-white'
-              }`}
-            >
-              <HardDrive size={13} />
-              Таргетный вес (Целевой размер КБ/МБ)
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setOptimizationMode('manual-quality')}
-              className={`px-3 py-1.5 border transition-all cursor-pointer font-bold flex items-center gap-1.5 ${
-                optimizationMode === 'manual-quality'
-                  ? 'border-[#8a00ff] bg-[#8a00ff] text-white shadow-sm'
-                  : 'border-[#282838] bg-[#0c0c14] text-[#80808e] hover:text-white'
-              }`}
-            >
-              <Sliders size={13} />
-              Ручное качество (Squoosh Quality)
-            </button>
-          </div>
-        </div>
-
-        {/* Dynamic Controls based on selected mode */}
-        {optimizationMode === 'target-size' ? (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center font-mono text-xs">
-              {/* Presets */}
-              <div>
-                <label className="text-[11px] text-[#888896] block mb-2">
-                  Быстрый выбор целевого веса:
-                </label>
-                <div className="flex flex-wrap gap-1.5">
-                  {[
-                    { label: '50 КБ', kb: 50 },
-                    { label: '100 КБ', kb: 100 },
-                    { label: '200 КБ', kb: 200 },
-                    { label: '300 КБ', kb: 300 },
-                    { label: '500 КБ', kb: 500 },
-                    { label: '1 МБ', kb: 1024 },
-                    { label: '2 МБ', kb: 2048 },
-                  ].map((preset) => (
-                    <button
-                      key={preset.kb}
-                      type="button"
-                      onClick={() => setWeightPreset(preset.kb)}
-                      className={`px-3 py-1.5 border transition-all cursor-pointer font-bold ${
-                        targetSizeKB === preset.kb
-                          ? 'border-[#00ff9d] bg-(--success)/20 text-[#00ff9d] shadow-sm'
-                          : 'border-[#262634] bg-[#0c0c14] text-[#888894] hover:text-white hover:border-[#38384a]'
-                      }`}
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Custom Input */}
-              <div className="bg-[#050508] border border-[#20202c] p-3 space-y-2">
-                <label className="text-[11px] text-[#888896] flex items-center justify-between">
-                  <span>Точный целевой вес:</span>
-                  <span className="text-[#00ff9d] font-bold">
-                    = {targetSizeKB} КБ ({targetSizeKB * 1024} байт)
-                  </span>
-                </label>
-
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min="10"
-                    max="50000"
-                    step={sizeUnit === 'MB' ? '0.1' : '10'}
-                    value={customInputValue}
-                    onChange={(e) => {
-                      const val = Math.max(0.1, Number(e.target.value));
-                      handleCustomWeightChange(val, sizeUnit);
-                    }}
-                    className="w-32 bg-[#0c0c14] border border-[#38384a] px-3 py-1.5 text-white font-mono text-xs font-bold focus:border-[#00ff9d] outline-none"
-                  />
-
-                  <div className="flex border border-[#38384a] bg-[#0c0c14] text-xs">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSizeUnit('KB');
-                        handleCustomWeightChange(customInputValue, 'KB');
-                      }}
-                      className={`px-2.5 py-1.5 transition-colors cursor-pointer ${
-                        sizeUnit === 'KB'
-                          ? 'bg-[#00ff9d] text-black font-bold'
-                          : 'text-[#888] hover:text-white'
-                      }`}
-                    >
-                      КБ
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSizeUnit('MB');
-                        handleCustomWeightChange(customInputValue, 'MB');
-                      }}
-                      className={`px-2.5 py-1.5 transition-colors cursor-pointer ${
-                        sizeUnit === 'MB'
-                          ? 'bg-[#00ff9d] text-black font-bold'
-                          : 'text-[#888] hover:text-white'
-                      }`}
-                    >
-                      МБ
-                    </button>
-                  </div>
-
-                  <span className="text-[10px] text-[#777] hidden sm:inline">
-                    (лимит на 1 файл)
-                  </span>
-                </div>
-              </div>
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Quick Presets */}
+            <div className="flex items-center gap-1.5">
+              {[100, 250, 500, 1024].map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => {
+                    if (preset >= 1024) {
+                      setTargetValue(preset / 1024);
+                      setTargetUnit('MB');
+                    } else {
+                      setTargetValue(preset);
+                      setTargetUnit('KB');
+                    }
+                  }}
+                  className={`px-2.5 py-1 text-[11px] font-mono rounded-md border transition-all ${
+                    (targetUnit === 'KB' && targetValue === preset) ||
+                    (targetUnit === 'MB' && targetValue * 1024 === preset)
+                      ? 'border-(--accent) bg-(--accent) text-(--on-accent) font-bold'
+                      : 'border-(--line) bg-(--panel) text-(--muted) hover:text-(--text) hover:border-(--line-strong)'
+                  }`}
+                >
+                  {preset >= 1024 ? `${preset / 1024} МБ` : `${preset} КБ`}
+                </button>
+              ))}
             </div>
 
-            <div className="p-3 bg-[#0a120e] border border-[#143324] text-xs font-mono text-[#a0c8b2] flex items-center gap-2">
-              <Info size={15} className="text-[#00ff9d] shrink-0" />
-              <span>
-                {outputFormat === 'original'
-                  ? 'Файлы сохранят исходный формат (JPG в JPG, PNG в PNG, WebP в WebP) и сожмутся ровно до ≤ ' + targetSizeKB + ' КБ.'
-                  : 'Все файлы сконвертируются в ' + outputFormat.toUpperCase() + ' и сожмутся до целевого веса ≤ ' + targetSizeKB + ' КБ.'}
-              </span>
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center font-mono text-xs">
-            <div className="space-y-2">
-              <div className="flex justify-between items-center text-[11px] text-[#787888]">
-                <span>10% (Макс. сжатие)</span>
-                <span className="text-[#bd5aff] font-bold">Качество: {qualitySlider}%</span>
-                <span>100% (Макс. четкость)</span>
-              </div>
-
+            {/* Input field + unit */}
+            <div className="flex items-center border border-(--line-strong) bg-(--panel) rounded-lg overflow-hidden focus-within:border-(--accent) transition-all">
               <input
-                type="range"
+                type="number"
                 min="10"
-                max="100"
-                step="5"
-                value={qualitySlider}
-                onChange={(e) => setQualitySlider(Number(e.target.value))}
-                className="w-full accent-[#8a00ff] cursor-pointer"
+                max="50000"
+                value={targetValue}
+                onChange={(e) => setTargetValue(Math.max(1, Number(e.target.value) || 1))}
+                className="w-20 px-3 py-1.5 text-sm font-mono text-(--text) bg-transparent outline-none"
               />
-
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {[
-                  { label: '60% (Сверхсжатие)', q: 60 },
-                  { label: '75% (Оптимально)', q: 75 },
-                  { label: '85% (Высокое)', q: 85 },
-                  { label: '95% (Ультра)', q: 95 },
-                ].map((item) => (
-                  <button
-                    key={item.q}
-                    type="button"
-                    onClick={() => setQualitySlider(item.q)}
-                    className={`px-2.5 py-1 border text-[10px] cursor-pointer transition-colors ${
-                      qualitySlider === item.q
-                        ? 'border-[#8a00ff] bg-(--accent)/20 text-white font-bold'
-                        : 'border-[#222230] bg-[#0c0c14] text-[#787886] hover:text-white'
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
+              <div className="flex border-l border-(--line)">
+                <button
+                  type="button"
+                  onClick={() => setTargetUnit('KB')}
+                  className={`px-2.5 py-1.5 text-xs font-mono transition-colors ${
+                    targetUnit === 'KB'
+                      ? 'bg-(--accent-soft) text-(--accent) font-bold'
+                      : 'text-(--muted) hover:text-(--text)'
+                  }`}
+                >
+                  КБ
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTargetUnit('MB')}
+                  className={`px-2.5 py-1.5 text-xs font-mono transition-colors ${
+                    targetUnit === 'MB'
+                      ? 'bg-(--accent-soft) text-(--accent) font-bold'
+                      : 'text-(--muted) hover:text-(--text)'
+                  }`}
+                >
+                  МБ
+                </button>
               </div>
-            </div>
-
-            <div className="bg-[#050508] border border-[#20202c] p-3 text-[11px] text-[#8e8e9c] space-y-2">
-              <div className="text-white font-bold flex items-center gap-1.5">
-                <Sparkles size={14} className="text-[#00ff9d]" />
-                Фиксированное Squoosh качество:
-              </div>
-              <p className="m-0 leading-relaxed">
-                Каждый кадр пережимается ровно с коэффициентом {qualitySlider}%. Разрешение и пропорции сохраняются на 100% без пиксельного ресайза.
-              </p>
             </div>
           </div>
-        )}
+        </div>
 
-        {/* Row 3: Folder Structure Checkbox */}
-        <div className="pt-2 border-t border-[#1c1c26] flex items-center justify-between text-xs font-mono">
-          <label className="flex items-center gap-2 cursor-pointer select-none text-white">
-            <input
-              type="checkbox"
-              checked={preserveFolderStructure}
-              onChange={(e) => setPreserveFolderStructure(e.target.checked)}
-              className="w-4 h-4 accent-[#8a00ff] cursor-pointer"
-            />
-            <span className="text-[11px] text-[#00ff9d] font-bold flex items-center gap-1">
-              <FolderTree size={13} />
-              Сохранять структуру вложенных папок в ZIP архиве
-            </span>
-          </label>
-
-          <span className="text-[11px] text-[#787888]">
-            {optimizationMode === 'target-size'
-              ? `Лимит: ≤ ${targetSizeKB} КБ`
-              : `Качество: ${qualitySlider}%`}
-            {' '}&middot; {outputFormat.toUpperCase()}
-          </span>
+        {/* Информативное предупреждение о пределах сжатия */}
+        <div className="flex items-start gap-2.5 p-3 rounded-lg border border-(--line) bg-(--panel) text-xs text-(--muted)">
+          <Info size={16} className="text-(--accent) shrink-0 mt-0.5" />
+          <p className="leading-relaxed m-0">
+            <strong>Предупреждение:</strong> для некоторых форматов (например, детализированный PNG без
+            потерь или уже сжатые файлы) итоговый вес может оказаться выше желаемого из-за физических
+            ограничений сжатия без принудительного уменьшения разрешения картинки. Исходный формат каждого
+            файла строго сохраняется.
+          </p>
         </div>
       </div>
 
-      {/* Upload Zone (Папкой или отдельными файлами) */}
+      {/* 3. Дропзона: автоматическое распознавание папок и файлов */}
       <div
-        onDragOver={(e) => {
-          e.preventDefault();
-          setIsDragOver(true);
-        }}
-        onDragLeave={() => setIsDragOver(false)}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={`border-2 border-dashed p-8 text-center transition-all duration-200 relative overflow-hidden group ${
+        className={`relative p-8 border-2 border-dashed rounded-2xl text-center transition-all flex flex-col items-center justify-center min-h-[220px] ${
           isDragOver
-            ? 'border-[#00ff9d] bg-(--success)/10 scale-[1.005]'
-            : 'border-[#282836] bg-[#08080d] hover:border-(--accent)/60 hover:bg-[#0c0c14]'
+            ? 'border-(--accent) bg-(--accent-soft)/30 scale-[1.005]'
+            : 'border-(--line-strong) bg-(--panel) hover:border-(--accent)/60'
         }`}
       >
+        <div className="w-14 h-14 rounded-full border border-(--line) bg-(--elevated) flex items-center justify-center text-(--accent) mb-4 shadow-sm">
+          <UploadCloud size={26} />
+        </div>
+
+        <h3 className="text-base sm:text-lg font-bold font-sans text-(--text) mb-1">
+          Перетащите изображения или целую папку сюда
+        </h3>
+        <p className="text-xs text-(--muted) font-mono max-w-md mb-5 leading-relaxed">
+          Плагин автоматически определит папку, сохранит вложенную структуру и сожмет все файлы в исходных форматах (PNG, JPEG, WebP).
+        </p>
+
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="px-4 py-2 border border-(--line-strong) bg-(--elevated) hover:border-(--accent) hover:text-(--text) text-xs font-mono rounded-lg transition-all flex items-center gap-2 text-(--text)"
+          >
+            <FileImage size={14} className="text-(--accent)" />
+            Выбрать файлы
+          </button>
+
+          <button
+            type="button"
+            onClick={() => folderInputRef.current?.click()}
+            className="px-4 py-2 border border-(--line-strong) bg-(--elevated) hover:border-(--accent) hover:text-(--text) text-xs font-mono rounded-lg transition-all flex items-center gap-2 text-(--text)"
+          >
+            <FolderOpen size={14} className="text-(--accent)" />
+            Выбрать папку целиком
+          </button>
+        </div>
+
+        {/* Hidden File Inputs */}
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
           multiple
-          className="hidden"
+          accept="image/*,.png,.jpg,.jpeg,.webp,.svg,.gif"
           onChange={handleFileInputChange}
+          className="hidden"
         />
-
         <input
           ref={folderInputRef}
           type="file"
-          {...({ webkitdirectory: '', directory: '' } as any)}
+          // @ts-expect-error webkitdirectory is standard for folder picker
+          webkitdirectory="true"
+          directory="true"
           multiple
-          className="hidden"
           onChange={handleFolderInputChange}
+          className="hidden"
         />
-
-        <div className="flex flex-col items-center justify-center gap-3">
-          <div className="w-14 h-14 rounded-full bg-[#12121c] border border-[#2c2c3c] flex items-center justify-center text-[#00ff9d] group-hover:scale-110 group-hover:border-[#00ff9d] transition-all">
-            <UploadCloud size={28} />
-          </div>
-
-          <div>
-            <div className="text-base font-bold text-white mb-1">
-              Загрузите изображения в Squoosh Studio папкой или отдельными файлами
-            </div>
-            <div className="text-xs font-mono text-[#8a8a9a]">
-              Поддерживаются JPG, PNG, WebP, GIF, AVIF · Автоопределение структуры папок
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-center gap-3 pt-3 font-mono text-xs">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                folderInputRef.current?.click();
-              }}
-              className="px-5 py-2.5 border border-[#8a00ff] bg-[#8a00ff] hover:bg-[#9d1aff] text-white transition-all flex items-center gap-2 cursor-pointer font-bold shadow-lg"
-            >
-              <FolderOpen size={16} />
-              Загрузить папкой целиком
-            </button>
-
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                fileInputRef.current?.click();
-              }}
-              className="px-5 py-2.5 border border-[#3b3b4d] bg-[#12121a] hover:bg-[#1f1f2e] text-[#cfcfd8] hover:text-white transition-colors flex items-center gap-2 cursor-pointer font-bold"
-            >
-              <FileImage size={16} />
-              Загрузить отдельные файлы
-            </button>
-          </div>
-        </div>
       </div>
 
-      {/* Progress & Live Log */}
-      {(isProcessing || logs.length > 0) && (
-        <div className="border border-[#262634] bg-[#07070b] p-4 space-y-3 font-mono text-xs">
-          <div className="flex items-center justify-between text-[#888896]">
-            <span className="text-white font-bold flex items-center gap-2">
-              {isProcessing ? (
-                <>
-                  <RefreshCw size={13} className="animate-spin text-[#00ff9d]" />
-                  Squoosh оптимизация: {progressCount} / {items.length}
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 size={13} className="text-[#00ff9d]" />
-                  Обработка Squoosh завершена!
-                </>
-              )}
-            </span>
-            <span className="text-[#00ff9d] font-bold">
-              {items.length > 0 ? Math.round((progressCount / items.length) * 100) : 0}%
-            </span>
-          </div>
-
-          <div className="h-1.5 w-full bg-[#14141c] overflow-hidden rounded-full border border-[#222230]">
-            <div
-              className="h-full bg-gradient-to-r from-[#8a00ff] to-[#00ff9d] transition-all duration-200"
-              style={{
-                width: `${items.length > 0 ? Math.min(100, Math.round((progressCount / items.length) * 100)) : 0}%`,
-              }}
-            />
-          </div>
-
-          <div
-            ref={logContainerRef}
-            className="h-28 overflow-y-auto bg-[#040407] border border-[#1a1a24] p-2.5 space-y-1 text-[11px] text-[#8e8e9c]"
-          >
-            {logs.map((logLine, idx) => (
-              <div key={idx} className="whitespace-nowrap font-mono">
-                <span className="text-[#00ff9d] mr-1.5">&gt;</span>
-                {logLine}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Results & Actions Bar */}
+      {/* 4. Результаты и список файлов */}
       {items.length > 0 && (
-        <div className="space-y-4">
-          <div className="border border-[#282836] bg-[#09090e] p-4 flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex flex-wrap items-center gap-4 text-xs font-mono">
+        <div className="space-y-4 pt-2">
+          {/* Summary Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-4 p-4 border border-(--line) bg-(--elevated) rounded-xl text-xs font-mono">
+            <div className="flex flex-wrap items-center gap-4 sm:gap-6">
               <div>
-                <span className="text-[10px] text-[#6c6c78] block">ФАЙЛОВ:</span>
-                <span className="text-white font-bold">{items.length} шт</span>
+                <span className="text-(--muted) block">Файлов:</span>
+                <span className="font-bold text-(--text) text-sm">{items.length}</span>
               </div>
-              <div className="h-6 w-px bg-[#20202c]" />
               <div>
-                <span className="text-[10px] text-[#6c6c78] block">ИСХОДНЫЙ ВЕС:</span>
-                <span className="text-white font-bold">{formatBytes(totalOriginalBytes)}</span>
+                <span className="text-(--muted) block">Исходный вес:</span>
+                <span className="font-bold text-(--text) text-sm">{formatBytes(totalOriginal)}</span>
               </div>
-              <div className="h-6 w-px bg-[#20202c]" />
               <div>
-                <span className="text-[10px] text-[#6c6c78] block">ИТОГОВЫЙ ВЕС:</span>
-                <span className="text-[#00ff9d] font-bold">{formatBytes(totalConvertedBytes)}</span>
+                <span className="text-(--muted) block">Сжатый вес:</span>
+                <span className="font-bold text-(--success) text-sm">{formatBytes(totalCompressed)}</span>
               </div>
-              <div className="h-6 w-px bg-[#20202c]" />
-              <div>
-                <span className="text-[10px] text-[#6c6c78] block">ЭКОНОМИЯ:</span>
-                <span className={`font-bold ${totalSavedPct > 0 ? 'text-[#00ff9d]' : 'text-white'}`}>
-                  {totalSavedPct > 0 ? `-${totalSavedPct}% (${formatBytes(totalSavedBytes)})` : '0%'}
-                </span>
-              </div>
+              {savedBytes > 0 && (
+                <div>
+                  <span className="text-(--muted) block">Экономия:</span>
+                  <span className="font-bold text-(--accent) text-sm">
+                    -{formatBytes(savedBytes)} ({savingsPercent}%)
+                  </span>
+                </div>
+              )}
+              {anyFolders && (
+                <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded bg-(--accent-soft) text-(--accent) text-[11px]">
+                  <FolderTree size={12} />
+                  Структура папок сохранена
+                </div>
+              )}
             </div>
 
             <button
-              onClick={handleDownloadZip}
-              disabled={isZipping || isProcessing || items.every((it) => it.status !== 'done')}
-              className="w-full md:w-auto px-6 py-2.5 bg-[#8a00ff] hover:bg-[#9d1aff] disabled:bg-[#333] text-white font-mono text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+              onClick={downloadAllZip}
+              disabled={isZipping}
+              className="px-4 py-2 border border-(--success) bg-(--success) hover:opacity-90 text-white font-bold rounded-lg transition-all flex items-center gap-2 shadow-sm ml-auto disabled:opacity-50"
             >
-              <Archive size={15} />
-              {isZipping ? 'Упаковка ZIP...' : 'СКАЧАТЬ ZIP АРХИВ'}
+              <Archive size={14} className={isZipping ? 'animate-spin' : ''} />
+              {isZipping ? 'Упаковка ZIP...' : anyFolders ? 'Скачать папку в ZIP' : 'Скачать всё в ZIP'}
             </button>
           </div>
 
-          {/* Files List with Squoosh Inspector Trigger */}
-          <div className="border border-[#22222e] bg-[#08080c] divide-y divide-[#181822] max-h-[420px] overflow-y-auto">
+          {/* Cards List */}
+          <div className="divide-y divide-(--line) border border-(--line) bg-(--panel) rounded-xl overflow-hidden">
             {items.map((item) => {
-              const savings =
-                item.originalSize > 0 && item.convertedSize > 0
-                  ? Math.round(((item.originalSize - item.convertedSize) / item.originalSize) * 100)
+              const diff = item.originalSize - item.compressedSize;
+              const percent =
+                item.originalSize > 0 && item.status === 'done'
+                  ? Math.round((diff / item.originalSize) * 100)
                   : 0;
-
-              const targetFilename = getTargetFilename(item);
 
               return (
                 <div
                   key={item.id}
-                  className="p-3 flex items-center justify-between gap-3 text-xs font-mono hover:bg-[#0c0c14] transition-colors"
+                  className="p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-(--elevated)/50 transition-colors"
                 >
-                  <div
-                    onClick={() => item.convertedUrl && setInspectingItem(item)}
-                    className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer group"
-                    title="Нажмите для интерактивного сравнения До/После в стиле Squoosh"
-                  >
-                    <div className="w-10 h-10 bg-[#040407] border border-[#20202c] group-hover:border-[#00ff9d] shrink-0 flex items-center justify-center overflow-hidden relative">
-                      {item.convertedUrl ? (
+                  <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                    {/* Thumbnail preview */}
+                    <div className="w-12 h-12 rounded-lg border border-(--line) bg-(--elevated) shrink-0 overflow-hidden flex items-center justify-center">
+                      {item.originalUrl ? (
                         <img
-                          src={item.convertedUrl}
+                          src={item.compressedUrl || item.originalUrl}
                           alt={item.name}
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <FileImage size={18} className="text-[#444]" />
+                        <FileImage size={20} className="text-(--muted)" />
                       )}
-                      <div className="absolute inset-0 bg-(--success)/10 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                        <Split size={14} className="text-[#00ff9d]" />
-                      </div>
                     </div>
 
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="text-white font-bold truncate max-w-[220px] sm:max-w-[360px] group-hover:text-[#00ff9d] transition-colors"
-                          title={preserveFolderStructure ? item.relativePath : item.name}
-                        >
-                          {preserveFolderStructure
-                            ? item.relativePath.replace(/\.[^.]+$/, `.${targetFilename.split('.').pop()}`)
-                            : targetFilename}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-xs sm:text-sm text-(--text) truncate max-w-xs font-sans">
+                          {item.name}
                         </span>
-                        <span className="text-[9px] uppercase px-1.5 py-0.2 border border-[#333] bg-[#14141c] text-[#a0a0b0]">
-                          {item.outputFormat.toUpperCase()}
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-(--elevated) border border-(--line) uppercase text-(--accent) font-semibold">
+                          {item.originalFormat}
                         </span>
-                      </div>
-                      <div className="text-[10px] text-[#70707e] flex items-center gap-2 mt-0.5">
-                        {item.width > 0 && (
-                          <span className="text-[#8a00ff]">
-                            {item.width}×{item.height} px
+                        {item.isFromFolder && (
+                          <span className="text-[10px] font-mono text-(--muted) truncate max-w-sm" title={item.relativePath}>
+                            📁 {item.relativePath}
                           </span>
                         )}
-                        <span>· До: {formatBytes(item.originalSize)}</span>
-                        {item.qualityUsed && (
-                          <span className="text-[#00ff9d]">[{item.qualityUsed}]</span>
+                      </div>
+
+                      <div className="mt-1 flex items-center gap-3 text-xs font-mono text-(--muted)">
+                        <span>{formatBytes(item.originalSize)}</span>
+                        {item.status === 'done' && (
+                          <>
+                            <span>→</span>
+                            <span className="font-bold text-(--success)">
+                              {formatBytes(item.compressedSize)}
+                            </span>
+                            {percent > 0 ? (
+                              <span className="text-(--accent) font-bold">(-{percent}%)</span>
+                            ) : (
+                              <span className="text-(--muted)">(без изменений)</span>
+                            )}
+                            <span className="hidden lg:inline text-[10px] text-(--muted)">
+                              · {item.engineUsed}
+                            </span>
+                          </>
+                        )}
+                        {item.status === 'processing' && (
+                          <span className="text-(--accent) flex items-center gap-1">
+                            <RefreshCw size={11} className="animate-spin" /> сжатие...
+                          </span>
+                        )}
+                        {item.status === 'error' && (
+                          <span className="text-(--danger) flex items-center gap-1">
+                            <AlertTriangle size={11} /> {item.errorMsg || 'Ошибка'}
+                          </span>
                         )}
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 shrink-0">
-                    <div className="text-right">
-                      {item.status === 'processing' && (
-                        <span className="text-[#ffd000] text-[11px] animate-pulse">Squoosh...</span>
-                      )}
-                      {item.status === 'done' && (
-                        <div>
-                          <div className="text-[#00ff9d] font-bold">
-                            {formatBytes(item.convertedSize)}
-                          </div>
-                          <div className={`text-[10px] ${savings > 0 ? 'text-[#00ff9d]' : 'text-[#888]'}`}>
-                            {item.unchanged ? 'Без изменений' : `-${savings}%`}
-                          </div>
-                        </div>
-                      )}
-                      {item.status === 'error' && (
-                        <span className="text-[#ff4070] text-[10px]">Ошибка</span>
-                      )}
-                    </div>
-
-                    {item.status === 'done' && item.convertedUrl && (
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => setInspectingItem(item)}
-                          title="Сравнить До/После (Squoosh Splitter)"
-                          className="p-1.5 border border-[#242432] bg-[#0c0c14] text-[#888894] hover:text-[#00ff9d] hover:border-[#00ff9d] transition-colors cursor-pointer"
-                        >
-                          <Split size={13} />
-                        </button>
-
-                        <a
-                          href={item.convertedUrl}
-                          download={targetFilename}
-                          title={`Скачать ${targetFilename}`}
-                          className="p-1.5 border border-[#242432] bg-[#0c0c14] text-[#cfcfd8] hover:text-white hover:border-[#8a00ff] transition-colors cursor-pointer"
-                        >
-                          <Download size={13} />
-                        </a>
-                      </div>
+                  {/* Actions */}
+                  <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                    {item.status === 'done' && (
+                      <button
+                        onClick={() => downloadSingle(item)}
+                        title="Скачать сжатый файл"
+                        className="px-2.5 py-1.5 border border-(--line) hover:border-(--accent) text-(--text) text-xs font-mono rounded-lg transition-colors flex items-center gap-1"
+                      >
+                        <Download size={13} />
+                        Скачать
+                      </button>
                     )}
+                    <button
+                      onClick={() => removeItem(item.id)}
+                      title="Удалить из списка"
+                      className="p-1.5 border border-transparent hover:border-(--line) hover:text-(--danger) text-(--muted) rounded-lg transition-colors"
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
                 </div>
               );
@@ -1217,122 +958,8 @@ export function SquooshStudio() {
           </div>
         </div>
       )}
-
-      {/* Squoosh Interactive Split Inspector Modal */}
-      {inspectingItem && inspectingItem.convertedUrl && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
-          <div className="bg-[#0b0b12] border border-[#2f2f3d] w-full max-w-4xl flex flex-col shadow-2xl overflow-hidden font-mono text-xs">
-            {/* Modal Header */}
-            <div className="p-4 border-b border-[#20202c] bg-[#07070b] flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="p-1.5 bg-(--accent)/20 text-[#00ff9d] border border-(--accent)/40">
-                  <Split size={16} />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-white font-bold truncate text-sm">
-                    {inspectingItem.name}
-                  </div>
-                  <div className="text-[11px] text-[#70707e] flex items-center gap-2 mt-0.5">
-                    <span>Оригинал: {formatBytes(inspectingItem.originalSize)}</span>
-                    <ArrowRight size={10} className="text-[#888]" />
-                    <span className="text-[#00ff9d] font-bold">
-                      {inspectingItem.outputFormat.toUpperCase()}: {formatBytes(inspectingItem.convertedSize)}
-                    </span>
-                    <span>
-                      (-{Math.round(((inspectingItem.originalSize - inspectingItem.convertedSize) / inspectingItem.originalSize) * 100)}%)
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setInspectingItem(null)}
-                className="p-1.5 border border-[#30303c] bg-[#12121a] hover:bg-[#20202e] text-[#aaa] hover:text-white cursor-pointer"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            {/* Squoosh Comparison Viewport */}
-            <div
-              ref={splitContainerRef}
-              onMouseDown={(e) => {
-                handleSplitDrag(e.clientX);
-                const handleMove = (moveEvt: MouseEvent) => handleSplitDrag(moveEvt.clientX);
-                const handleUp = () => {
-                  window.removeEventListener('mousemove', handleMove);
-                  window.removeEventListener('mouseup', handleUp);
-                };
-                window.addEventListener('mousemove', handleMove);
-                window.addEventListener('mouseup', handleUp);
-              }}
-              onTouchMove={(e) => {
-                if (e.touches[0]) handleSplitDrag(e.touches[0].clientX);
-              }}
-              className="relative w-full h-[460px] bg-[#050508] overflow-hidden select-none cursor-ew-resize flex items-center justify-center border-b border-[#20202c]"
-            >
-              {/* After Image (Right/Optimized) */}
-              <img
-                src={inspectingItem.convertedUrl}
-                alt="Optimized"
-                className="absolute inset-0 w-full h-full object-contain pointer-events-none"
-              />
-
-              {/* Before Image (Left/Original) with clip-path */}
-              <div
-                className="absolute inset-0 overflow-hidden pointer-events-none"
-                style={{ clipPath: `inset(0 ${100 - splitPosition}% 0 0)` }}
-              >
-                <img
-                  src={inspectingItem.originalUrl}
-                  alt="Original"
-                  className="absolute inset-0 w-full h-full object-contain pointer-events-none"
-                />
-              </div>
-
-              {/* Divider Handle */}
-              <div
-                className="absolute top-0 bottom-0 w-0.5 bg-[#00ff9d] shadow-[0_0_12px_#00ff9d] pointer-events-none"
-                style={{ left: `${splitPosition}%` }}
-              >
-                <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-[#0b0b12] border-2 border-[#00ff9d] shadow-lg flex items-center justify-center text-[#00ff9d]">
-                  <Split size={14} />
-                </div>
-              </div>
-
-              {/* Badges on left and right */}
-              <div className="absolute top-3 left-3 bg-black/75 px-2.5 py-1 border border-[#333] text-white font-mono text-[10px] pointer-events-none">
-                ДО: {formatBytes(inspectingItem.originalSize)} ({inspectingItem.originalFormat})
-              </div>
-
-              <div className="absolute top-3 right-3 bg-black/75 px-2.5 py-1 border border-(--success)/40 text-[#00ff9d] font-mono text-[10px] pointer-events-none">
-                ПОСЛЕ ({inspectingItem.outputFormat.toUpperCase()}): {formatBytes(inspectingItem.convertedSize)}
-              </div>
-
-              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-black/80 px-3 py-1 rounded-full border border-[#333] text-[#aaa] text-[10px] pointer-events-none">
-                Передвигайте ползунок для сравнения деталей
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="p-4 bg-[#08080d] flex items-center justify-between gap-4 font-mono">
-              <div className="text-[11px] text-[#787886]">
-                Параметры: <span className="text-[#00ff9d] font-bold">{inspectingItem.qualityUsed}</span>
-              </div>
-
-              <a
-                href={inspectingItem.convertedUrl}
-                download={getTargetFilename(inspectingItem)}
-                className="px-4 py-2 bg-[#00ff9d] hover:bg-[#1affb2] text-black font-bold flex items-center gap-1.5 cursor-pointer shadow-md"
-              >
-                <Download size={14} />
-                Скачать оптимизированный файл
-              </a>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
+
+export default SquooshStudio;

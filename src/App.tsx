@@ -382,14 +382,14 @@ export default function App() {
 
                 <button
                   onClick={() => setSelectedService('squoosh')}
-                  className={`px-4 py-2 border transition-all flex items-center gap-2 cursor-pointer ${
+                  className={`px-4 py-2 border transition-all flex items-center gap-2 cursor-pointer rounded-lg ${
                     selectedService === 'squoosh'
-                      ? 'border-(--success) bg-(--success) text-white font-bold shadow-md'
+                      ? 'border-(--accent) bg-(--accent) text-(--on-accent) font-bold'
                       : 'border-(--line-strong) bg-(--panel) text-(--muted) hover:text-(--text)'
                   }`}
                 >
-                  <Sparkles size={14} className={selectedService === 'squoosh' ? 'text-white' : 'text-(--success)'} />
-                  SQUOOSH STUDIO
+                  <Sparkles size={14} />
+                  СЖИМАТЕЛЬ ИЗОБРАЖЕНИЙ
                 </button>
 
                 <button
