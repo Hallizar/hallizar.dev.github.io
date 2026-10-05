@@ -36,6 +36,8 @@ declare module '*.wasm?url' {
 
 declare module 'imagequant/imagequant_bg.js' {
   export function __wbg_set_wasm(val: any): void;
+  export function __wbindgen_error_new(arg0: any, arg1: any): any;
+  export function __wbindgen_throw(arg0: any, arg1: any): void;
   export class Imagequant {
     constructor();
     free(): void;

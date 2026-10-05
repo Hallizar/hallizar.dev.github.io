@@ -1,9 +1,13 @@
-import { __wbg_set_wasm, Imagequant, ImagequantImage } from 'imagequant/imagequant_bg.js';
+import * as bg from 'imagequant/imagequant_bg.js';
 import wasmUrl from 'imagequant/imagequant_bg.wasm?url';
 
 let isReady = false;
 let initPromise: Promise<void> | null = null;
 
+/**
+ * Инициализация WebAssembly-модуля imagequant (valterkraemer/imagequant-wasm)
+ * с передачей точных импортов рантайма wasm-bindgen.
+ */
 export async function initImagequant(): Promise<void> {
   if (isReady) return;
   if (initPromise) return initPromise;
@@ -11,12 +15,23 @@ export async function initImagequant(): Promise<void> {
   initPromise = (async () => {
     try {
       const response = await fetch(wasmUrl);
+      if (!response.ok) {
+        throw new Error(`Не удалось загрузить WASM-файл imagequant: HTTP ${response.status}`);
+      }
       const wasmBytes = await response.arrayBuffer();
-      const { instance } = await WebAssembly.instantiate(wasmBytes, {});
-      __wbg_set_wasm(instance.exports);
+      const imports = {
+        './imagequant_bg.js': {
+          __wbindgen_error_new: bg.__wbindgen_error_new,
+          __wbindgen_throw: bg.__wbindgen_throw,
+        },
+      };
+
+      const { instance } = await WebAssembly.instantiate(wasmBytes, imports);
+      bg.__wbg_set_wasm(instance.exports);
       isReady = true;
     } catch (err) {
-      console.warn('[imagequant-wasm] Failed to initialize WASM quantizer:', err);
+      initPromise = null;
+      console.error('[imagequant-wasm] Ошибка инициализации WASM:', err);
       throw err;
     }
   })();
@@ -25,7 +40,9 @@ export async function initImagequant(): Promise<void> {
 }
 
 /**
- * Квантование и оптимизация PNG через WebAssembly libimagequant (valterkraemer/imagequant-wasm).
+ * Квантование и сжатие PNG через официальный WebAssembly libimagequant
+ * (репозиторий valterkraemer/imagequant-wasm).
+ *
  * @param rgbaPixels Uint8ClampedArray пикселей RGBA
  * @param width ширина изображения
  * @param height высота изображения
@@ -44,15 +61,18 @@ export async function quantizePng(
   await initImagequant();
 
   const uint8Data = new Uint8Array(rgbaPixels.buffer, rgbaPixels.byteOffset, rgbaPixels.byteLength);
-  const image = new ImagequantImage(uint8Data, width, height, 0.0);
-  const quant = new Imagequant();
+  const image = new bg.ImagequantImage(uint8Data, width, height, 0.0);
+  const quant = new bg.Imagequant();
 
-  quant.set_quality(Math.max(0, Math.min(100, minQuality)), Math.max(1, Math.min(100, targetQuality)));
-  quant.set_max_colors(Math.max(8, Math.min(256, maxColors)));
+  quant.set_quality(
+    Math.max(0, Math.min(100, Math.round(minQuality))),
+    Math.max(1, Math.min(100, Math.round(targetQuality))),
+  );
+  quant.set_max_colors(Math.max(8, Math.min(256, Math.round(maxColors))));
   quant.set_speed(4);
 
+  // process(image) передает владение памятью в WASM и освобождает image
   const pngBytes = quant.process(image);
-  image.free();
   quant.free();
 
   return pngBytes;

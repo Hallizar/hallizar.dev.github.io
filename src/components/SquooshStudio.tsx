@@ -7,13 +7,13 @@ import {
   FileImage,
   RefreshCw,
   Download,
-  ShieldCheck,
   HardDrive,
   Info,
-  CheckCircle2,
-  AlertTriangle,
   FolderTree,
   Sparkles,
+  Sliders,
+  Check,
+  AlertTriangle,
 } from 'lucide-react';
 import JSZip from 'jszip';
 import { quantizePng } from '../utils/imagequantLoader';
@@ -36,6 +36,8 @@ export interface CompressorFileItem {
   status: 'pending' | 'processing' | 'done' | 'error';
   errorMsg?: string;
 }
+
+export type PngPreset = 'light' | 'balanced' | 'strong' | 'maximum';
 
 function detectFormat(file: File): 'png' | 'jpeg' | 'webp' | 'svg' | 'other' {
   const ext = file.name.split('.').pop()?.toLowerCase() || '';
@@ -81,11 +83,15 @@ function canvasToBlob(
 
 export function SquooshStudio() {
   const [items, setItems] = useState<CompressorFileItem[]>([]);
-  
-  // Только один параметр: «Желаемый вес»
+
+  // 1. Настройка для JPEG / WebP: «Желаемый вес»
   const [targetValue, setTargetValue] = useState<number>(300);
   const [targetUnit, setTargetUnit] = useState<'KB' | 'MB'>('KB');
-  
+
+  // 2. Настройка для PNG: «Степень сжатия» (WASM imagequant)
+  const [pngQuality, setPngQuality] = useState<number>(75);
+  const [pngPreset, setPngPreset] = useState<PngPreset>('balanced');
+
   const [isDragOver, setIsDragOver] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isZipping, setIsZipping] = useState(false);
@@ -95,6 +101,12 @@ export function SquooshStudio() {
   const folderInputRef = useRef<HTMLInputElement>(null);
 
   const targetBytes = targetUnit === 'MB' ? targetValue * 1024 * 1024 : targetValue * 1024;
+
+  // Анализ загруженных форматов
+  const hasPng = items.some((it) => it.originalFormat === 'png');
+  const hasNonPng = items.some((it) => it.originalFormat !== 'png');
+  const isOnlyPng = items.length > 0 && hasPng && !hasNonPng;
+  const isOnlyNonPng = items.length > 0 && !hasPng && hasNonPng;
 
   // Cleanup object URLs on unmount
   useEffect(() => {
@@ -106,85 +118,80 @@ export function SquooshStudio() {
     };
   }, []);
 
+  const handleApplyPngPreset = (preset: PngPreset) => {
+    setPngPreset(preset);
+    if (preset === 'light') setPngQuality(90);
+    else if (preset === 'balanced') setPngQuality(75);
+    else if (preset === 'strong') setPngQuality(55);
+    else if (preset === 'maximum') setPngQuality(35);
+  };
+
   /**
-   * Сжатие PNG с сохранением формата PNG через WebAssembly imagequant.
+   * Сжатие PNG через WebAssembly imagequant с регулировкой степени сжатия.
    */
   const compressPng = async (
     file: File,
     img: HTMLImageElement,
-    targetLimit: number,
+    quality: number,
   ): Promise<{ blob: Blob; engine: string }> => {
-    // Если исходный файл уже меньше желаемого веса
-    if (file.size <= targetLimit) {
-      return { blob: file, engine: 'PNG (оригинал без изменений)' };
-    }
+    const origWidth = img.naturalWidth || img.width;
+    const origHeight = img.naturalHeight || img.height;
+
+    // Определение количества цветов в палитре на основе выбранного уровня
+    let maxColors = 160;
+    if (quality >= 85) maxColors = 256;
+    else if (quality >= 70) maxColors = 192;
+    else if (quality >= 50) maxColors = 128;
+    else if (quality >= 35) maxColors = 64;
+    else maxColors = 32;
 
     const canvas = document.createElement('canvas');
-    canvas.width = img.naturalWidth || img.width;
-    canvas.height = img.naturalHeight || img.height;
+    canvas.width = origWidth;
+    canvas.height = origHeight;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    if (!ctx) throw new Error('Не удалось инициализировать 2D-контекст canvas');
+    if (!ctx) throw new Error('Не удалось инициализировать 2D-контекст');
 
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, origWidth, origHeight);
+    const imageData = ctx.getImageData(0, 0, origWidth, origHeight);
 
-    // Пытаемся использовать WASM imagequant с подбором параметров под желаемый вес
     try {
-      let bestBlob: Blob | null = null;
-      let bestSize = Infinity;
+      const pngBytes = await quantizePng(
+        imageData.data,
+        origWidth,
+        origHeight,
+        0,
+        quality,
+        maxColors,
+      );
+      const currentBlob = new Blob([pngBytes.buffer as ArrayBuffer], { type: 'image/png' });
 
-      // Тестируем комбинации палитры (256, 128, 64) для приближения к желаемому весу
-      const palettes = [256, 160, 96, 48, 24];
-      for (const colors of palettes) {
-        const pngBytes = await quantizePng(
-          imageData.data,
-          canvas.width,
-          canvas.height,
-          0,
-          Math.min(85, Math.max(20, Math.round((targetLimit / file.size) * 100))),
-          colors,
-        );
-        const currentBlob = new Blob([pngBytes.buffer as ArrayBuffer], { type: 'image/png' });
-
-        if (currentBlob.size < bestSize) {
-          bestBlob = currentBlob;
-          bestSize = currentBlob.size;
-        }
-
-        // Если уложились в желаемый вес — останавливаемся
-        if (currentBlob.size <= targetLimit) {
-          break;
-        }
-      }
-
-      if (bestBlob && bestBlob.size < file.size) {
-        return { blob: bestBlob, engine: 'WASM imagequant (PNG)' };
+      if (currentBlob.size < file.size) {
+        return {
+          blob: currentBlob,
+          engine: `WASM imagequant (${maxColors} цв., кач. ${quality}%)`,
+        };
       }
     } catch (err) {
       console.warn('[imagequant-wasm] fallback to canvas:', err);
     }
 
-    // Fallback: canvas png export
+    // Fallback: canvas PNG export
     const fallback = await canvasToBlob(canvas, 'image/png');
     if (fallback && fallback.size < file.size) {
       return { blob: fallback, engine: 'Canvas PNG' };
     }
 
-    return { blob: file, engine: 'PNG (оригинал)' };
+    return { blob: file, engine: 'PNG (оригинал уже оптимален)' };
   };
 
   /**
-   * Сжатие JPEG с сохранением формата JPEG бинарным поиском качества под желаемый вес.
+   * Сжатие JPEG под желаемый целевой вес.
    */
   const compressJpeg = async (
     file: File,
     img: HTMLImageElement,
     targetLimit: number,
   ): Promise<{ blob: Blob; engine: string }> => {
-    if (file.size <= targetLimit) {
-      return { blob: file, engine: 'JPEG (оригинал без изменений)' };
-    }
-
     const canvas = document.createElement('canvas');
     canvas.width = img.naturalWidth || img.width;
     canvas.height = img.naturalHeight || img.height;
@@ -195,7 +202,6 @@ export function SquooshStudio() {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-    // Бинарный поиск качества (от 0.05 до 0.95)
     let low = 0.05;
     let high = 0.95;
     let bestBlob: Blob | null = null;
@@ -209,9 +215,9 @@ export function SquooshStudio() {
       if (b.size <= targetLimit) {
         bestBlob = b;
         bestQuality = mid;
-        low = mid; // пробуем чуть лучше качество
+        low = mid;
       } else {
-        high = mid; // нужно сжать сильнее
+        high = mid;
         if (!bestBlob || b.size < bestBlob.size) {
           bestBlob = b;
           bestQuality = mid;
@@ -226,21 +232,17 @@ export function SquooshStudio() {
       };
     }
 
-    return { blob: file, engine: 'JPEG (оригинал)' };
+    return { blob: file, engine: 'JPEG (оригинал уже оптимален)' };
   };
 
   /**
-   * Сжатие WebP с сохранением формата WebP под желаемый вес.
+   * Сжатие WebP под желаемый целевой вес.
    */
   const compressWebp = async (
     file: File,
     img: HTMLImageElement,
     targetLimit: number,
   ): Promise<{ blob: Blob; engine: string }> => {
-    if (file.size <= targetLimit) {
-      return { blob: file, engine: 'WebP (оригинал без изменений)' };
-    }
-
     const canvas = document.createElement('canvas');
     canvas.width = img.naturalWidth || img.width;
     canvas.height = img.naturalHeight || img.height;
@@ -279,11 +281,11 @@ export function SquooshStudio() {
       };
     }
 
-    return { blob: file, engine: 'WebP (оригинал)' };
+    return { blob: file, engine: 'WebP (оригинал уже оптимален)' };
   };
 
   /**
-   * Рекурсивное чтение папок при Drop (Drag and Drop directory support)
+   * Рекурсивное чтение папок при Drop
    */
   const readDirectoryEntries = async (
     entry: any,
@@ -324,10 +326,6 @@ export function SquooshStudio() {
     return [];
   };
 
-  /**
-   * Добавление файлов в очередь.
-   * Автоматически определяет, передана папка или отдельные файлы.
-   */
   const addFilesToQueue = async (
     rawFiles: { file: File; relativePath?: string; isFromFolder?: boolean }[],
   ) => {
@@ -337,7 +335,6 @@ export function SquooshStudio() {
       const { file } = item;
       const fmt = detectFormat(file);
 
-      // Пропускаем не-изображения
       if (fmt === 'other' && !file.type.startsWith('image/')) {
         continue;
       }
@@ -352,10 +349,9 @@ export function SquooshStudio() {
         width = img.naturalWidth || img.width;
         height = img.naturalHeight || img.height;
       } catch {
-        // Если векторный или нераспознанный — сохраняем базовые 0
+        // SVG or unrendered
       }
 
-      // Если у файла есть путь от папки
       const hasFolder = Boolean(item.isFromFolder || (item.relativePath && item.relativePath.includes('/')));
       const relPath = item.relativePath || file.webkitRelativePath || file.name;
 
@@ -383,9 +379,6 @@ export function SquooshStudio() {
     }
   };
 
-  /**
-   * Запуск процесса сжатия всех элементов под заданный желаемый вес.
-   */
   const processAll = useCallback(async () => {
     if (items.length === 0 || isProcessing) return;
     setIsProcessing(true);
@@ -407,7 +400,7 @@ export function SquooshStudio() {
         } else {
           const img = await loadImage(it.file);
           if (it.originalFormat === 'png') {
-            const res = await compressPng(it.file, img, targetBytes);
+            const res = await compressPng(it.file, img, pngQuality);
             resultBlob = res.blob;
             engine = res.engine;
           } else if (it.originalFormat === 'jpeg') {
@@ -458,9 +451,8 @@ export function SquooshStudio() {
     }
 
     setIsProcessing(false);
-  }, [items, isProcessing, targetBytes]);
+  }, [items, isProcessing, targetBytes, pngQuality]);
 
-  // Drag and drop handlers
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -488,9 +480,7 @@ export function SquooshStudio() {
           const entry = (item as any).webkitGetAsEntry ? (item as any).webkitGetAsEntry() : null;
           if (entry && entry.isDirectory) {
             const dirFiles = await readDirectoryEntries(entry, entry.name);
-            filesWithPaths.push(
-              ...dirFiles.map((f) => ({ ...f, isFromFolder: true })),
-            );
+            filesWithPaths.push(...dirFiles.map((f) => ({ ...f, isFromFolder: true })));
           } else {
             const file = item.getAsFile();
             if (file) {
@@ -510,7 +500,6 @@ export function SquooshStudio() {
       return;
     }
 
-    // Fallback: standard file list
     const droppedFiles = Array.from(e.dataTransfer.files);
     await addFilesToQueue(
       droppedFiles.map((f) => ({
@@ -521,7 +510,6 @@ export function SquooshStudio() {
     );
   };
 
-  // Input file change (individual files)
   const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const fileList = Array.from(e.target.files);
@@ -535,7 +523,6 @@ export function SquooshStudio() {
     e.target.value = '';
   };
 
-  // Folder input change (directory selection via webkitdirectory)
   const handleFolderInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const fileList = Array.from(e.target.files);
@@ -549,7 +536,6 @@ export function SquooshStudio() {
     e.target.value = '';
   };
 
-  // Скачивание отдельного сжатого файла
   const downloadSingle = (item: CompressorFileItem) => {
     const blob = item.compressedBlob || item.file;
     const url = URL.createObjectURL(blob);
@@ -562,7 +548,6 @@ export function SquooshStudio() {
     URL.revokeObjectURL(url);
   };
 
-  // Скачивание всех сжатых файлов в ZIP с сохранением структуры папок
   const downloadAllZip = async () => {
     if (items.length === 0 || isZipping) return;
     setIsZipping(true);
@@ -572,7 +557,6 @@ export function SquooshStudio() {
 
       for (const item of items) {
         const blob = item.compressedBlob || item.file;
-        // Если файл был частью папки, сохраняем исходный относительный путь
         const archivePath = item.isFromFolder && item.relativePath ? item.relativePath : item.name;
         zip.file(archivePath, blob);
       }
@@ -660,94 +644,190 @@ export function SquooshStudio() {
         )}
       </div>
 
-      {/* 2. Единственная настройка: «Желаемый вес» + Предупреждение */}
-      <div className="p-5 border border-(--line) bg-(--elevated) rounded-xl space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <label className="text-xs font-mono uppercase tracking-wider font-bold text-(--accent) flex items-center gap-1.5">
-              <HardDrive size={14} /> Желаемый вес файла
-            </label>
-            <p className="text-xs text-(--muted) mt-0.5 font-sans">
-              Движок оптимизации автоматически подберет параметры для приближения к целевому размеру.
-            </p>
-          </div>
+      {/* 2. Контекстные настройки:
+          - «Степень сжатия PNG»: открывается ТОЛЬКО после того, как загружен хотя бы один PNG файл
+          - «Желаемый вес»: скрывается, если загружены только PNG файлы */}
+      <div className="space-y-4">
+        {/* А. Настройка для PNG: открывается ТОЛЬКО если загружен PNG файл */}
+        {hasPng && (
+          <div className="p-5 border border-(--line) bg-(--elevated) rounded-xl space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <label className="text-xs font-mono uppercase tracking-wider font-bold text-(--accent) flex items-center gap-1.5">
+                  <Sliders size={14} /> Степень сжатия PNG (WASM imagequant)
+                </label>
+                <p className="text-xs text-(--muted) mt-0.5 font-sans">
+                  Квантование палитры цветов. Чем сильнее сжатие, тем меньше весит PNG без потери геометрии.
+                </p>
+              </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Quick Presets */}
-            <div className="flex items-center gap-1.5">
-              {[100, 250, 500, 1024].map((preset) => (
+              <div className="flex flex-wrap items-center gap-2">
                 <button
-                  key={preset}
                   type="button"
-                  onClick={() => {
-                    if (preset >= 1024) {
-                      setTargetValue(preset / 1024);
-                      setTargetUnit('MB');
-                    } else {
-                      setTargetValue(preset);
-                      setTargetUnit('KB');
-                    }
-                  }}
-                  className={`px-2.5 py-1 text-[11px] font-mono rounded-md border transition-all ${
-                    (targetUnit === 'KB' && targetValue === preset) ||
-                    (targetUnit === 'MB' && targetValue * 1024 === preset)
+                  onClick={() => handleApplyPngPreset('light')}
+                  className={`px-3 py-1.5 text-xs font-mono rounded-lg border transition-all ${
+                    pngPreset === 'light'
                       ? 'border-(--accent) bg-(--accent) text-(--on-accent) font-bold'
-                      : 'border-(--line) bg-(--panel) text-(--muted) hover:text-(--text) hover:border-(--line-strong)'
+                      : 'border-(--line) bg-(--panel) text-(--muted) hover:text-(--text)'
                   }`}
                 >
-                  {preset >= 1024 ? `${preset / 1024} МБ` : `${preset} КБ`}
+                  Слабое (256 цв.)
                 </button>
-              ))}
-            </div>
 
-            {/* Input field + unit */}
-            <div className="flex items-center border border-(--line-strong) bg-(--panel) rounded-lg overflow-hidden focus-within:border-(--accent) transition-all">
-              <input
-                type="number"
-                min="10"
-                max="50000"
-                value={targetValue}
-                onChange={(e) => setTargetValue(Math.max(1, Number(e.target.value) || 1))}
-                className="w-20 px-3 py-1.5 text-sm font-mono text-(--text) bg-transparent outline-none"
-              />
-              <div className="flex border-l border-(--line)">
                 <button
                   type="button"
-                  onClick={() => setTargetUnit('KB')}
-                  className={`px-2.5 py-1.5 text-xs font-mono transition-colors ${
-                    targetUnit === 'KB'
-                      ? 'bg-(--accent-soft) text-(--accent) font-bold'
-                      : 'text-(--muted) hover:text-(--text)'
+                  onClick={() => handleApplyPngPreset('balanced')}
+                  className={`px-3 py-1.5 text-xs font-mono rounded-lg border transition-all ${
+                    pngPreset === 'balanced'
+                      ? 'border-(--accent) bg-(--accent) text-(--on-accent) font-bold'
+                      : 'border-(--line) bg-(--panel) text-(--muted) hover:text-(--text)'
                   }`}
                 >
-                  КБ
+                  Баланс (192 цв.)
                 </button>
+
                 <button
                   type="button"
-                  onClick={() => setTargetUnit('MB')}
-                  className={`px-2.5 py-1.5 text-xs font-mono transition-colors ${
-                    targetUnit === 'MB'
-                      ? 'bg-(--accent-soft) text-(--accent) font-bold'
-                      : 'text-(--muted) hover:text-(--text)'
+                  onClick={() => handleApplyPngPreset('strong')}
+                  className={`px-3 py-1.5 text-xs font-mono rounded-lg border transition-all ${
+                    pngPreset === 'strong'
+                      ? 'border-(--accent) bg-(--accent) text-(--on-accent) font-bold'
+                      : 'border-(--line) bg-(--panel) text-(--muted) hover:text-(--text)'
                   }`}
                 >
-                  МБ
+                  Сильное (128 цв.)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleApplyPngPreset('maximum')}
+                  className={`px-3 py-1.5 text-xs font-mono rounded-lg border transition-all ${
+                    pngPreset === 'maximum'
+                      ? 'border-(--accent) bg-(--accent) text-(--on-accent) font-bold'
+                      : 'border-(--line) bg-(--panel) text-(--muted) hover:text-(--text)'
+                  }`}
+                >
+                  Максимум (64 цв.)
                 </button>
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* Информативное предупреждение о пределах сжатия */}
-        <div className="flex items-start gap-2.5 p-3 rounded-lg border border-(--line) bg-(--panel) text-xs text-(--muted)">
-          <Info size={16} className="text-(--accent) shrink-0 mt-0.5" />
-          <p className="leading-relaxed m-0">
-            <strong>Предупреждение:</strong> для некоторых форматов (например, детализированный PNG без
-            потерь или уже сжатые файлы) итоговый вес может оказаться выше желаемого из-за физических
-            ограничений сжатия без принудительного уменьшения разрешения картинки. Исходный формат каждого
-            файла строго сохраняется.
-          </p>
-        </div>
+            {/* Slider fine-tuning */}
+            <div className="flex items-center gap-4 pt-1">
+              <span className="text-[11px] font-mono text-(--muted) shrink-0">
+                Качество: <strong className="text-(--text)">{pngQuality}%</strong>
+              </span>
+              <input
+                type="range"
+                min="20"
+                max="95"
+                step="5"
+                value={pngQuality}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setPngQuality(val);
+                  if (val >= 85) setPngPreset('light');
+                  else if (val >= 70) setPngPreset('balanced');
+                  else if (val >= 50) setPngPreset('strong');
+                  else setPngPreset('maximum');
+                }}
+                className="w-full accent-(--accent) cursor-pointer"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Б. Настройка для JPEG / WebP: «Желаемый вес»
+            СКРЫВАЕТСЯ, если загружен только PNG формат! */}
+        {!isOnlyPng && (
+          <div className="p-5 border border-(--line) bg-(--elevated) rounded-xl space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <label className="text-xs font-mono uppercase tracking-wider font-bold text-(--accent) flex items-center gap-1.5">
+                  <HardDrive size={14} /> Желаемый вес файла {hasPng ? '(для JPEG и WebP)' : ''}
+                </label>
+                <p className="text-xs text-(--muted) mt-0.5 font-sans">
+                  Движок оптимизации автоматически подберет параметры для приближения к целевому размеру.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Quick Presets */}
+                <div className="flex items-center gap-1.5">
+                  {[100, 250, 500, 1024].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => {
+                        if (preset >= 1024) {
+                          setTargetValue(preset / 1024);
+                          setTargetUnit('MB');
+                        } else {
+                          setTargetValue(preset);
+                          setTargetUnit('KB');
+                        }
+                      }}
+                      className={`px-2.5 py-1 text-[11px] font-mono rounded-md border transition-all ${
+                        (targetUnit === 'KB' && targetValue === preset) ||
+                        (targetUnit === 'MB' && targetValue * 1024 === preset)
+                          ? 'border-(--accent) bg-(--accent) text-(--on-accent) font-bold'
+                          : 'border-(--line) bg-(--panel) text-(--muted) hover:text-(--text) hover:border-(--line-strong)'
+                      }`}
+                    >
+                      {preset >= 1024 ? `${preset / 1024} МБ` : `${preset} КБ`}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Input field + unit */}
+                <div className="flex items-center border border-(--line-strong) bg-(--panel) rounded-lg overflow-hidden focus-within:border-(--accent) transition-all">
+                  <input
+                    type="number"
+                    min="10"
+                    max="50000"
+                    value={targetValue}
+                    onChange={(e) => setTargetValue(Math.max(1, Number(e.target.value) || 1))}
+                    className="w-20 px-3 py-1.5 text-sm font-mono text-(--text) bg-transparent outline-none"
+                  />
+                  <div className="flex border-l border-(--line)">
+                    <button
+                      type="button"
+                      onClick={() => setTargetUnit('KB')}
+                      className={`px-2.5 py-1.5 text-xs font-mono transition-colors ${
+                        targetUnit === 'KB'
+                          ? 'bg-(--accent-soft) text-(--accent) font-bold'
+                          : 'text-(--muted) hover:text-(--text)'
+                      }`}
+                    >
+                      КБ
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTargetUnit('MB')}
+                      className={`px-2.5 py-1.5 text-xs font-mono transition-colors ${
+                        targetUnit === 'MB'
+                          ? 'bg-(--accent-soft) text-(--accent) font-bold'
+                          : 'text-(--muted) hover:text-(--text)'
+                      }`}
+                    >
+                      МБ
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Информативное предупреждение о пределах сжатия */}
+            <div className="flex items-start gap-2.5 p-3 rounded-lg border border-(--line) bg-(--panel) text-xs text-(--muted)">
+              <Info size={16} className="text-(--accent) shrink-0 mt-0.5" />
+              <p className="leading-relaxed m-0">
+                <strong>Предупреждение:</strong> для сильно сжатых файлов итоговый вес может оказаться
+                выше желаемого из-за физических ограничений сжатия без принудительного уменьшения разрешения.
+                Исходный формат каждого файла строго сохраняется.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 3. Дропзона: автоматическое распознавание папок и файлов */}
@@ -816,7 +896,7 @@ export function SquooshStudio() {
       {/* 4. Результаты и список файлов */}
       {items.length > 0 && (
         <div className="space-y-4 pt-2">
-          {/* Summary Bar */}
+          {/* Top Summary Bar */}
           <div className="flex flex-wrap items-center justify-between gap-4 p-4 border border-(--line) bg-(--elevated) rounded-xl text-xs font-mono">
             <div className="flex flex-wrap items-center gap-4 sm:gap-6">
               <div>
@@ -847,14 +927,32 @@ export function SquooshStudio() {
               )}
             </div>
 
-            <button
-              onClick={downloadAllZip}
-              disabled={isZipping}
-              className="px-4 py-2 border border-(--success) bg-(--success) hover:opacity-90 text-white font-bold rounded-lg transition-all flex items-center gap-2 shadow-sm ml-auto disabled:opacity-50"
-            >
-              <Archive size={14} className={isZipping ? 'animate-spin' : ''} />
-              {isZipping ? 'Упаковка ZIP...' : anyFolders ? 'Скачать папку в ZIP' : 'Скачать всё в ZIP'}
-            </button>
+            <div className="flex items-center gap-2 ml-auto">
+              <button
+                onClick={clearAll}
+                disabled={isProcessing}
+                className="px-3 py-2 border border-(--line) hover:border-(--danger) hover:text-(--danger) text-xs font-mono rounded-lg transition-colors flex items-center gap-1.5 text-(--muted)"
+              >
+                <Trash2 size={13} />
+                Очистить
+              </button>
+              <button
+                onClick={processAll}
+                disabled={isProcessing}
+                className="px-3.5 py-2 border border-(--accent) bg-(--accent) text-(--on-accent) hover:bg-(--accent-hover) font-bold rounded-lg transition-all flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+              >
+                <RefreshCw size={13} className={isProcessing ? 'animate-spin' : ''} />
+                {isProcessing ? 'Сжатие...' : 'Сжать всё'}
+              </button>
+              <button
+                onClick={downloadAllZip}
+                disabled={isZipping}
+                className="px-4 py-2 border border-(--success) bg-(--success) hover:opacity-90 text-white font-bold rounded-lg transition-all flex items-center gap-2 shadow-sm disabled:opacity-50"
+              >
+                <Archive size={14} className={isZipping ? 'animate-spin' : ''} />
+                {isZipping ? 'Упаковка ZIP...' : anyFolders ? 'Скачать папку в ZIP' : 'Скачать всё в ZIP'}
+              </button>
+            </div>
           </div>
 
           {/* Cards List */}
@@ -894,7 +992,10 @@ export function SquooshStudio() {
                           {item.originalFormat}
                         </span>
                         {item.isFromFolder && (
-                          <span className="text-[10px] font-mono text-(--muted) truncate max-w-sm" title={item.relativePath}>
+                          <span
+                            className="text-[10px] font-mono text-(--muted) truncate max-w-sm"
+                            title={item.relativePath}
+                          >
                             📁 {item.relativePath}
                           </span>
                         )}
@@ -955,6 +1056,47 @@ export function SquooshStudio() {
                 </div>
               );
             })}
+          </div>
+
+          {/* 5. Нижняя панель действий (ДУБЛИРОВАНИЕ кнопок «Очистить», «Сжать всё» и «Скачать всё в ZIP») */}
+          <div className="flex flex-wrap items-center justify-between gap-3 p-4 border border-(--line) bg-(--elevated) rounded-xl text-xs font-mono">
+            <div className="text-xs font-mono text-(--muted)">
+              Элементов в очереди: <strong className="text-(--text)">{items.length}</strong>
+              {savedBytes > 0 && (
+                <span className="ml-2 text-(--success) font-bold">
+                  (сэкономлено {formatBytes(savedBytes)})
+                </span>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5 ml-auto">
+              <button
+                onClick={clearAll}
+                disabled={isProcessing}
+                className="px-3.5 py-2 border border-(--line) hover:border-(--danger) hover:text-(--danger) text-xs font-mono rounded-lg transition-colors flex items-center gap-1.5 text-(--muted)"
+              >
+                <Trash2 size={13} />
+                Очистить
+              </button>
+
+              <button
+                onClick={processAll}
+                disabled={isProcessing}
+                className="px-4 py-2 border border-(--accent) bg-(--accent) text-(--on-accent) hover:bg-(--accent-hover) font-bold rounded-lg transition-all flex items-center gap-2 shadow-sm disabled:opacity-50"
+              >
+                <RefreshCw size={13} className={isProcessing ? 'animate-spin' : ''} />
+                {isProcessing ? `Сжатие (${processedCount}/${items.length})...` : 'Сжать всё'}
+              </button>
+
+              <button
+                onClick={downloadAllZip}
+                disabled={isZipping}
+                className="px-4 py-2 border border-(--success) bg-(--success) hover:opacity-90 text-white font-bold rounded-lg transition-all flex items-center gap-2 shadow-sm disabled:opacity-50"
+              >
+                <Archive size={14} className={isZipping ? 'animate-spin' : ''} />
+                {isZipping ? 'Упаковка ZIP...' : anyFolders ? 'Скачать папку в ZIP' : 'Скачать всё в ZIP'}
+              </button>
+            </div>
           </div>
         </div>
       )}

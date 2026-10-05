@@ -2,6 +2,7 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { defineConfig, type Plugin } from 'vite';
+import wasm from 'vite-plugin-wasm';
 import { githubAuthMiddleware } from './src/server/github-auth-middleware.ts';
 
 function githubAuthPlugin(): Plugin {
@@ -23,7 +24,7 @@ function githubAuthPlugin(): Plugin {
 export default defineConfig(() => {
   return {
     base: './',
-    plugins: [react(), tailwindcss(), githubAuthPlugin()],
+    plugins: [react(), tailwindcss(), wasm(), githubAuthPlugin()],
     resolve: {
       alias: {
         '@': path.resolve('.'),
