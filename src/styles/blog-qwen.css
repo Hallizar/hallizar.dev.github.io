@@ -38,6 +38,27 @@
   transform: scale(1.045);
 }
 
+/* Horizontal card / next-post recommendation on wide desktop screens */
+.qwen-card-horizontal,
+.qwen-card.sm\:flex-row {
+  display: flex;
+  flex-direction: column;
+}
+@media (min-width: 640px) {
+  .qwen-card-horizontal,
+  .qwen-card.sm\:flex-row {
+    flex-direction: row !important;
+    align-items: stretch;
+  }
+  .qwen-card-horizontal .qwen-square,
+  .qwen-card.sm\:flex-row > .qwen-square {
+    width: 11rem !important;
+    min-width: 11rem !important;
+    height: 11rem !important;
+    flex-shrink: 0 !important;
+  }
+}
+
 /* Pill tag / chip */
 .qwen-chip {
   display: inline-flex;

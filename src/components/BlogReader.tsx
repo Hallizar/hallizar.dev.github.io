@@ -148,11 +148,11 @@ export function BlogPostView({
   const prevPost = currentIdx > 0 ? chronological[currentIdx - 1] : undefined;
 
   // Адрес статьи синхронизирует App через replaceState (без накопления истории).
-  // Здесь только подстраховка: если URL «уехал» (относительные pushState), чиним его.
+  // Здесь только подстраховка: если URL «уехал» (относительные pushState или повторы), чиним его.
   useEffect(() => {
     const path = window.location.pathname;
-    const expected = postPath(post).replace(/\/+$/, '');
-    if (!new RegExp(`(^|/)blog/${post.slug}/?$`).test(path)) {
+    const expected = postPath(post);
+    if (!new RegExp(`(^|/)blog/${post.slug}/?$`).test(path) || path.includes('/blog/blog')) {
       window.history.replaceState({ slug: post.slug }, '', expected);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -344,9 +344,9 @@ export function BlogPostView({
         {nextPost ? (
           <button
             onClick={() => onSelectPost?.(nextPost)}
-            className="qwen-card w-full text-left rounded-2xl overflow-hidden group flex flex-col sm:flex-row"
+            className="qwen-card qwen-card-horizontal w-full text-left rounded-2xl overflow-hidden group flex flex-col sm:flex-row"
           >
-            <div className="qwen-square sm:w-44 sm:h-44 sm:shrink-0 !aspect-square">
+            <div className="qwen-square w-full sm:!w-44 sm:!min-w-[11rem] sm:!h-44 sm:shrink-0 !aspect-square">
               {nextPost.image ? (
                 <img src={nextPost.image} alt={nextPost.title} loading="lazy" draggable={false} />
               ) : (
@@ -355,7 +355,7 @@ export function BlogPostView({
                 </div>
               )}
             </div>
-            <div className="p-5 flex-1 min-w-0">
+            <div className="p-5 flex-1 min-w-0 flex flex-col justify-center">
               <p className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-[0.18em] text-(--accent)">
                 Далее по хронологии <ChevronRight size={12} className="transition-transform group-hover:translate-x-1" />
               </p>

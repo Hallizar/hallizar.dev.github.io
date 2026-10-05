@@ -12,7 +12,7 @@ import { BlogPostView } from './components/BlogReader';
 import './styles/blog-qwen.css';
 import { ThemeToggle } from './components/ThemeToggle';
 import { getInitialTheme, applyTheme, persistTheme, type ThemeMode } from './utils/theme';
-import { postPath } from './utils/postUrl';
+import { postPath, feedPath, getDataUrl } from './utils/postUrl';
 import { AdBanner } from './components/AdBanner';
 import { DecapAdminStandalone } from './components/DecapAdminStandalone';
 import { updateSEOMetadata } from './utils/seo';
@@ -29,19 +29,20 @@ function sortByDateDesc(list: BlogPost[]): BlogPost[] {
 function slugFromLocation(): string | null {
   if (typeof window === 'undefined') return null;
   const m = window.location.pathname.match(/\/blog\/([^/]+)\/?$/);
-  return m ? decodeURIComponent(m[1]) : null;
+  if (!m) return null;
+  const raw = decodeURIComponent(m[1]);
+  if (raw.toLowerCase() === 'blog') return null;
+  return raw;
 }
 
-/** Приводим «заслуженные» относительные URL вида /blog/a/blog/b/blog/a к последнему slug. */
+/** Приводим любые накопленные относительные URL вида /blog/blog или /blog/a/blog/b к чистому адресу. */
 function normalizePathIfNeeded() {
   if (typeof window === 'undefined') return;
   const path = window.location.pathname;
-  // Несколько подряд сегментов /blog/<slug> — признак накопленных pushState-адресов
-  if (/\/blog\/[^/]+(?:\/blog\/[^/]+)+\/?$/.test(path)) {
+  // Несколько подряд сегментов /blog/<slug> или повторяющийся /blog/blog — признак накопленных pushState
+  if (/\/blog(?:\/[^/]+)*\/blog(?:\/|$)/i.test(path) || /\/blog\/[^/]+(?:\/blog\/[^/]+)+\/?$/.test(path)) {
     const slug = slugFromLocation();
-    const base = import.meta.env.BASE_URL || '/';
-    const trimmed = base.replace(/\/+$/, '');
-    const clean = slug ? `${trimmed}/blog/${slug}` : `${trimmed}/blog`;
+    const clean = slug ? postPath({ slug }) : feedPath();
     window.history.replaceState(window.history.state, '', clean);
   }
 }
@@ -74,21 +75,20 @@ export default function App() {
   }, []);
 
   // Переход между статьями: обновляем адрес БЕЗ добавления новой истории,
-  // чтобы URL всегда был корректным (/blog/<slug>/) и не «рос» при сёрфинге.
+  // чтобы URL всегда был корректным (/blog/<slug>) и никогда не накапливал /blog.
   const selectPost = useCallback((post: BlogPost | null) => {
     setSelectedPost(post);
-    const base = import.meta.env.BASE_URL || '/';
-    const trimmed = base.replace(/\/+$/, '');
     if (post) {
-      window.history.replaceState({ slug: post.slug }, '', `${trimmed}/blog/${post.slug}`);
+      window.history.replaceState({ slug: post.slug }, '', postPath(post));
     } else {
       // Из ленты — добавляем запись истории, чтобы кнопка «Назад» браузера
       // возвращала к ленте; из статьи в статью — только заменяем адрес.
       const inArticle = Boolean(window.history.state?.slug) || Boolean(slugFromLocation());
+      const target = feedPath();
       if (inArticle) {
-        window.history.replaceState({}, '', `${trimmed}/blog`);
+        window.history.replaceState({}, '', target);
       } else {
-        window.history.pushState({}, '', `${trimmed}/blog`);
+        window.history.pushState({}, '', target);
       }
     }
   }, []);
@@ -110,7 +110,7 @@ export default function App() {
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [postsLoaded, setPostsLoaded] = useState(false);
 
-  // Прямые ссылки на статьи: /blog/<slug>/ открывают читалку сразу
+  // Прямые ссылки на статьи: /blog/<slug> открывают читалку сразу
   useEffect(() => {
     if (!postsLoaded) return;
     const slug = slugFromLocation();
@@ -123,7 +123,7 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
 
-    fetch(`${import.meta.env.BASE_URL}ads-data.json`, { cache: 'no-store' })
+    fetch(getDataUrl('ads-data.json'), { cache: 'no-store' })
       .then((res) => (res.ok ? res.json() : null))
       .then((payload) => {
         if (cancelled) return;
@@ -147,7 +147,7 @@ export default function App() {
         setAdsLoaded(true);
       });
 
-    fetch(`${import.meta.env.BASE_URL}posts-data.json`, { cache: 'no-store' })
+    fetch(getDataUrl('posts-data.json'), { cache: 'no-store' })
       .then((res) => (res.ok ? res.json() : null))
       .then((payload) => {
         if (cancelled) return;
