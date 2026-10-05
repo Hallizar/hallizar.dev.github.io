@@ -1,10 +1,13 @@
 import { BlogPost } from '../types';
 
+const KNOWN_ROOT_ROUTES = new Set(['blog', 'services', 'about', 'admin', 'dist', 'index.html', '404.html']);
+
 /**
  * Базовый префикс сайта для GitHub Pages или кастомного домена.
  * Например:
  *   - "https://hallizar.ru/blog" -> ""
  *   - "https://hallizar.github.io/blog" -> ""
+ *   - "https://hallizar.github.io/hallizar.dev.github.io/blog" -> "/hallizar.dev.github.io"
  *   - "https://user.github.io/my-repo/blog" -> "/my-repo"
  * Всегда возвращает путь БЕЗ замыкающего слэша, гарантируя что итоговый адрес
  * всегда начинается с '/' и никогда не является относительным './blog'.
@@ -17,31 +20,40 @@ export function getBasePrefix(): string {
   }
 
   const pathname = window.location.pathname;
+  const segments = pathname.split('/').filter(Boolean);
 
-  // Если в пути есть сегмент /blog, префиксом является всё, что идёт до него
-  const blogIdx = pathname.indexOf('/blog');
+  // 1. Если в пути есть сегмент 'blog', всё что идёт до него — базовый префикс
+  const blogIdx = segments.indexOf('blog');
   if (blogIdx > 0) {
-    return pathname.slice(0, blogIdx).replace(/\/+$/, '');
+    return '/' + segments.slice(0, blogIdx).join('/');
+  }
+  if (blogIdx === 0) {
+    return '';
   }
 
-  // Для известных сервисных страниц
-  for (const seg of ['/services', '/admin', '/about']) {
-    const idx = pathname.indexOf(seg);
+  // 2. Для других известных корневых разделов (/services, /admin, /about)
+  for (const known of KNOWN_ROOT_ROUTES) {
+    const idx = segments.indexOf(known);
     if (idx > 0) {
-      return pathname.slice(0, idx).replace(/\/+$/, '');
+      return '/' + segments.slice(0, idx).join('/');
+    }
+    if (idx === 0) {
+      return '';
     }
   }
 
-  const envBase = import.meta.env.BASE_URL || '/';
-  if (envBase.startsWith('/') && envBase !== '/') {
-    return envBase.replace(/\/+$/, '');
+  // 3. Если путь не пустой и первый сегмент не является системным маршрутом
+  // (например, имя репозитория GitHub Pages вида /hallizar.dev.github.io)
+  if (segments.length > 0 && !KNOWN_ROOT_ROUTES.has(segments[0])) {
+    return '/' + segments[0];
   }
 
   return '';
 }
 
 /**
- * Канонический путь к ленте блога: всегда начинается с '/', например "/blog".
+ * Канонический путь к ленте блога: всегда начинается с '/', например "/blog"
+ * или "/hallizar.dev.github.io/blog".
  * Исключает накопление повторов вида "/blog/blog/blog".
  */
 export function feedPath(): string {
@@ -50,7 +62,8 @@ export function feedPath(): string {
 }
 
 /**
- * Канонический путь к статье: всегда начинается с '/', например "/blog/<slug>".
+ * Канонический путь к статье: всегда начинается с '/', например "/blog/<slug>"
+ * или "/hallizar.dev.github.io/blog/<slug>".
  */
 export function postPath(post: Pick<BlogPost, 'slug'>): string {
   const prefix = getBasePrefix();
@@ -68,7 +81,7 @@ export function absolutePostUrl(post: Pick<BlogPost, 'slug'>): string {
 }
 
 /**
- * Надежный путь к статическим JSON-данным (ads-data.json, posts-data.json) на GitHub Pages.
+ * Надежный абсолютный путь к статическим JSON-данным (ads-data.json, posts-data.json) на GitHub Pages.
  */
 export function getDataUrl(filename: string): string {
   const prefix = getBasePrefix();

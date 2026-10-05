@@ -153,8 +153,9 @@ function getPageJavaScript(html) {
   return getScripts(html)
     .filter((s) => s.type !== 'application/ld+json')
     .map((s) => {
-      if (s.src && s.src.startsWith('/') && !s.src.startsWith('//')) {
-        const file = path.join(DIST, s.src.split(/[?#]/)[0]);
+      const src = s.src ? (s.src.startsWith('./') ? s.src.slice(1) : s.src) : null;
+      if (src && src.startsWith('/') && !src.startsWith('//')) {
+        const file = path.join(DIST, src.split(/[?#]/)[0]);
         return fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
       }
       return s.content;

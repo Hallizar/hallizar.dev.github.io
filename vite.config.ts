@@ -22,7 +22,7 @@ function githubAuthPlugin(): Plugin {
 
 export default defineConfig(() => {
   return {
-    base: '/',
+    base: './',
     plugins: [react(), tailwindcss(), githubAuthPlugin()],
     resolve: {
       alias: {
