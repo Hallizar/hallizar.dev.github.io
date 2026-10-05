@@ -1,0 +1,196 @@
+---
+import { getCollection, render } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import AdBanner from '../../components/AdBanner.astro';
+// Новый визуал в стиле coder.qwen.ai: токены тем + читалка
+import '../../styles/blog-qwen.css';
+
+export async function getStaticPaths() {
+  const posts = await getCollection('posts', ({ data }) => !data.draft);
+  return posts.map((post) => ({
+    params: { slug: post.id },
+    props: { post },
+  }));
+}
+
+const allPosts = (await getCollection('posts', ({ data }) => !data.draft))
+  .map((p) => ({ p, d: p.data.pubDate ?? p.data.date ?? new Date(0) }))
+  .sort((a, b) => b.d.getTime() - a.d.getTime());
+
+const { post } = Astro.props;
+
+// Если hero не задан, первая картинка из тела становится главным изображением
+// (показывается сверху без рамки) и убирается из текста, чтобы не дублироваться.
+const rawBody = post.body ?? '';
+// ищем первую картинку в теле: как figure/изображение на отдельной строке
+const bodyImageMatch = rawBody.match(/(^|\n)\s*!?\[[^\]]*\]\(\s*(https?:\/\/[^)\s]+)[^)\s]*\)/);
+const firstBodyImage = bodyImageMatch ? bodyImageMatch[2] : undefined;
+if (!post.data.heroImage && firstBodyImage) {
+  // убираем её из тела — она будет показана сверху без рамки
+  post.body = rawBody.replace(bodyImageMatch![0], '').trim();
+}
+const { Content } = await render(post);
+const { title, description, heroImage, category, tags } = post.data;
+const mainImage = heroImage || firstBodyImage;
+const pubDate = post.data.pubDate ?? post.data.date ?? new Date();
+const updatedDate = post.data.updatedDate ?? pubDate;
+
+// Следующий пост по хронологии — идущий ниже текущего в ленте (новые сверху)
+const idx = allPosts.findIndex(({ p }) => p.id === post.id);
+const nextPost = idx >= 0 && idx + 1 < allPosts.length ? allPosts[idx + 1] : undefined;
+const prevPost = idx > 0 ? allPosts[idx - 1] : undefined;
+
+function formatDate(d: Date): string {
+  return d.toLocaleDateString('ru-RU', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+---
+
+<BaseLayout
+  title={`${title} — Hallizar`}
+  description={description}
+  image={mainImage}
+  pathname={`/blog/${post.id}/`}
+  type="article"
+  article={{ pubDate, updatedDate, tags, section: category }}
+>
+  <script is:inline>
+    // Тема до первой отрисовки — без "мигания"
+    (function () {
+      try {
+        var saved = localStorage.getItem('hallizar-theme');
+        var mode = saved === 'light' || saved === 'dark'
+          ? saved
+          : (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+        var root = document.documentElement;
+        root.dataset.theme = mode;
+        root.classList.toggle('theme-light', mode === 'light');
+        root.classList.toggle('theme-dark', mode === 'dark');
+      } catch (e) {}
+    })();
+  </script>
+
+  <div class="mx-auto max-w-3xl px-4 py-6 reader-enter">
+    <AdBanner slot="top-header" />
+
+    <!-- Верхняя панель: назад + дата -->
+    <div class="flex items-center justify-between gap-3 mb-6 mt-2">
+      <a href="/blog" class="qwen-chip !text-xs hover:!border-(--accent) hover:!text-(--accent)">← К ленте</a>
+      <time class="text-[11px] font-mono text-(--muted)" datetime={pubDate.toISOString()}>{formatDate(pubDate)}</time>
+    </div>
+
+    <!-- Заголовок -->
+    <header class="mb-8">
+      {category && (
+        <p class="text-[11px] font-mono uppercase tracking-[0.2em] text-(--accent)">{category}</p>
+      )}
+      <h1 class="mt-3 text-3xl sm:text-4xl font-bold leading-[1.15] tracking-tight text-(--text)">{title}</h1>
+      {description && (
+        <p class="mt-4 text-base sm:text-lg text-(--muted) leading-relaxed">{description}</p>
+      )}
+
+      <!-- Кнопка «Поделиться»: копирует адрес ИМЕННО этой статьи -->
+      <div class="mt-6 pb-6 border-b border-(--line) flex items-center justify-between gap-4">
+        <button
+          id="share-btn"
+          data-url={new URL(`/blog/${post.id}/`, Astro.site).href}
+          class="qwen-chip !py-2 !px-4 !text-xs transition-all hover:!border-(--accent) hover:!text-(--accent)"
+          aria-label="Скопировать ссылку на статью"
+        >
+          Поделиться ссылкой
+        </button>
+      </div>
+    </header>
+
+    <!-- Главное изображение — БЕЗ рамок, во всю ширину -->
+    {mainImage && (
+      <figure class="my-8">
+        <img src={mainImage} alt={title} loading="eager" decoding="async" />
+      </figure>
+    )}
+
+    <AdBanner slot="in-article" />
+
+    <!-- Тело статьи -->
+    <div class="prose-reader">
+      <Content />
+    </div>
+
+    <!-- Теги -->
+    {tags && tags.length > 0 && (
+      <footer class="mt-10 pt-6 border-t border-(--line) flex flex-wrap gap-2">
+        {tags.map((tag) => (
+          <a href={`/blog/?tag=${encodeURIComponent(tag)}`} class="qwen-chip !cursor-default">#{tag}</a>
+        ))}
+      </footer>
+    )}
+
+    <!-- Следующий пост по хронологии -->
+    <section class="mt-10 mb-6">
+      {nextPost ? (
+        <a href={`/blog/${nextPost.p.id}/`} class="qwen-card w-full text-left rounded-2xl overflow-hidden group flex flex-col sm:flex-row block">
+          <div class="qwen-square sm:w-44 sm:h-44 sm:shrink-0">
+            {(nextPost.p.data.heroImage || nextPost.p.data.image) ? (
+              <img src={nextPost.p.data.heroImage || nextPost.p.data.image} alt={nextPost.p.data.title} loading="lazy" />
+            ) : (
+              <div class="w-full h-full grid place-items-center bg-(--elevated) text-3xl font-black text-(--accent)/40">H</div>
+            )}
+          </div>
+          <div class="p-5 flex-1 min-w-0">
+            <p class="text-[10px] font-mono uppercase tracking-[0.18em] text-(--accent)">Далее по хронологии →</p>
+            <h3 class="mt-2 text-lg font-bold leading-snug text-(--text) group-hover:text-(--accent) transition-colors line-clamp-2">
+              {nextPost.p.data.title}
+            </h3>
+            <p class="mt-1.5 text-[13px] text-(--muted) line-clamp-2">{nextPost.p.data.description}</p>
+            <p class="mt-2 text-[11px] font-mono text-(--muted)">{formatDate(nextPost.d)}</p>
+          </div>
+        </a>
+      ) : (
+        <div class="rounded-2xl border border-dashed border-(--line-strong) p-6 text-center text-sm text-(--muted)">
+          Это самый новый материал ленты. <a href="/blog" class="text-(--accent) hover:underline underline-offset-4">Вернуться к ленте</a>
+        </div>
+      )}
+
+      {prevPost && (
+        <div class="mt-6 text-[11px] font-mono text-(--muted)">
+          <a href={`/blog/${prevPost.p.id}/`} class="hover:text-(--accent) transition-colors">
+            ← Предыдущий: {prevPost.p.data.title.slice(0, 48)}…
+          </a>
+        </div>
+      )}
+    </section>
+  </div>
+
+  <script is:inline>
+    // Копирование ссылки на СТАТЬЮ (а не на сайт) + Web Share на мобильных
+    (function () {
+      var btn = document.getElementById('share-btn');
+      if (!btn) return;
+      var url = btn.getAttribute('data-url') || window.location.href;
+      btn.addEventListener('click', function () {
+        var done = function () {
+          btn.textContent = 'Ссылка скопирована ✓';
+          setTimeout(function () { btn.textContent = 'Поделиться ссылкой'; }, 2500);
+        };
+        if (navigator.share) {
+          navigator.share({ title: document.title, url: url }).catch(function () {});
+          return;
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(url).then(done).catch(function () { fallback(); });
+        } else {
+          fallback();
+        }
+        function fallback() {
+          var ta = document.createElement('textarea');
+          ta.value = url;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          try { document.execCommand('copy'); done(); } catch (e) {}
+          document.body.removeChild(ta);
+        }
+      });
+    })();
+  </script>
+</BaseLayout>

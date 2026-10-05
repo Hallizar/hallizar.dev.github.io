@@ -1,0 +1,114 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import AdBanner from '../../components/AdBanner.astro';
+// Новый визуал в стиле coder.qwen.ai: токены тем + лента 1:1
+import '../../styles/blog-qwen.css';
+
+/** Приводим превью из CDN к квадратному кропу 1:1 (как в Instagram-ленте). */
+function squareImage(url?: string): string | undefined {
+  if (!url) return undefined;
+  if (url.startsWith('data:') || url.startsWith('blob:')) return url;
+  if (/[?&]w=/.test(url)) {
+    return (
+      url.replace(/([?&])w=\d+/g, '$1w=800').replace(/([?&])h=\d+/g, '') +
+      '&h=800&fit=crop'
+    );
+  }
+  // Локальные изображения: добавляем ?q=N — стили знают квадратный кроп для этого файла
+  if (!/^https?:\/\//.test(url) && !url.startsWith('data:') && !url.includes('?')) {
+    const crops: Record<string, string> = {
+      '/assets/uploads/1post.jpg': 'q=2',
+    };
+    const crop = crops[url];
+    return crop ? `${url}?${crop}` : url;
+  }
+  return url;
+}
+
+const posts = (await getCollection('posts', ({ data }) => !data.draft))
+  .map((post) => ({ post, pubDate: post.data.pubDate ?? post.data.date ?? new Date(0) }))
+  .sort((a, b) => b.pubDate.getTime() - a.pubDate.getTime());
+---
+
+<BaseLayout
+  title="Блог — Hallizar"
+  description="Инженерный блог о современной веб-разработке, WebAssembly, Astro SSG, SEO и монетизации через РСЯ."
+  pathname="/blog"
+  type="website"
+>
+  <script is:inline>
+    // Тема до первой отрисовки — без "мигания"
+    (function () {
+      try {
+        var saved = localStorage.getItem('hallizar-theme');
+        var mode = saved === 'light' || saved === 'dark'
+          ? saved
+          : (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+        var root = document.documentElement;
+        root.dataset.theme = mode;
+        root.classList.toggle('theme-light', mode === 'light');
+        root.classList.toggle('theme-dark', mode === 'dark');
+      } catch (e) {}
+    })();
+  </script>
+
+  <div class="mx-auto max-w-5xl px-4 py-6">
+    <AdBanner slot="top-header" />
+
+    <!-- Минималистичная шапка ленты -->
+    <header class="mt-6 mb-8 flex items-end justify-between gap-5">
+      <div>
+        <p class="text-[11px] font-mono uppercase tracking-[0.2em] text-(--accent)">Блог</p>
+        <h1 class="mt-2 text-3xl sm:text-4xl font-bold tracking-tight text-(--text)">Лента статей</h1>
+        <p class="mt-2 text-sm text-(--muted) max-w-xl leading-relaxed">
+          Заметки об инженерии браузера, графике и производительности.
+        </p>
+      </div>
+      <a href="/" class="qwen-chip shrink-0 whitespace-nowrap">Все сервисы →</a>
+    </header>
+
+    <!-- Сетка-лента: изображения 1:1 -->
+    <div class="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+      {posts.map(({ post, pubDate }) => {
+        const preview = squareImage(post.data.heroImage || post.data.image);
+        return (
+          <a href={`/blog/${post.id}/`} class="qwen-card rounded-2xl overflow-hidden group block focus:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)">
+            <div class="qwen-square">
+              {preview ? (
+                <img
+                  src={preview}
+                  alt={post.data.title}
+                  loading="lazy"
+                  decoding="async"
+                  class="select-none"
+                />
+              ) : (
+                <div class="w-full h-full flex items-center justify-center bg-gradient-to-br from-(--accent-soft) to-transparent">
+                  <span class="text-4xl font-black text-(--accent)/40 select-none">H</span>
+                </div>
+              )}
+              {post.data.category && (
+                <span class="absolute top-3 left-3 px-2.5 py-1 rounded-full text-[10px] font-mono uppercase tracking-wider bg-black/55 text-white backdrop-blur-md">
+                  {post.data.category}
+                </span>
+              )}
+            </div>
+            <div class="p-4 sm:p-5">
+              <h2 class="font-sans text-base sm:text-lg font-bold leading-snug tracking-tight text-(--text) line-clamp-2 group-hover:text-(--accent) transition-colors">
+                {post.data.title}
+              </h2>
+              <p class="mt-2 text-[13px] leading-relaxed text-(--muted) line-clamp-2">{post.data.description}</p>
+              <div class="mt-3.5 flex items-center justify-between gap-3 text-[11px] font-mono text-(--muted)">
+                <time datetime={pubDate.toISOString()} class="whitespace-nowrap">
+                  {pubDate.toLocaleDateString('ru-RU', { year: 'numeric', month: 'long', day: 'numeric' })}
+                </time>
+                <span class="truncate">Читать →</span>
+              </div>
+            </div>
+          </a>
+        );
+      })}
+    </div>
+  </div>
+</BaseLayout>
