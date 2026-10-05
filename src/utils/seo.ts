@@ -64,10 +64,10 @@ export interface SEOMetadata {
 }
 
 const DEFAULT_SITE_URL = 'https://hallizar.ru';
-const DEFAULT_TITLE = 'Hallizar Studio — Modern Web Engineering & Local GIF Studio';
-const DEFAULT_DESCRIPTION = 'Инженерный блог о современной веб-разработке, WebAssembly, Astro SSG и локальных инструментах без серверного бэкенда.';
+const DEFAULT_TITLE = 'Халлизар студия — Блог о дизайне и веб-разработке, плагины Figma, веб-сервесы: пакетная сборка гиф,пакетное сжатие с сохранением структуры папки - png,jpeg,webp на самых пиздатых WASM кодировщиках.  ';
+const DEFAULT_DESCRIPTION = 'Блог о современной веб-разработке с удобными локальнми инструментами без серверного бэкенда.';
 const DEFAULT_IMAGE = 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=1200&auto=format&fit=crop&q=80';
-const DEFAULT_SITE_NAME = 'Hallizar Studio';
+const DEFAULT_SITE_NAME = 'Халлизар студия';
 const DEFAULT_LOCALE = 'ru_RU';
 const DEFAULT_TWITTER_HANDLE = '@hallizar';
 
@@ -111,7 +111,7 @@ export function getSEOMetadata(options: SEOOptions = {}): SEOMetadata {
   const updatedDateObj = articleConfig?.updatedDate ? new Date(articleConfig.updatedDate) : pubDateObj;
   const author = articleConfig?.author || 'Hallizar';
   const tags = articleConfig?.tags || [];
-  const section = articleConfig?.section || 'Технологии и веб-разработка';
+  const section = articleConfig?.section || 'Технологии, веб-разработка и веб-сервисы, пакетная сборка гиф, пакетное сжатие, лучшее качество';
 
   // 4. Construct Open Graph payload
   const openGraph: SEOMetadata['openGraph'] = {
@@ -206,7 +206,7 @@ export function getSEOMetadata(options: SEOOptions = {}): SEOMetadata {
             name: 'Local GIF Studio',
             applicationCategory: 'MultimediaApplication',
             operatingSystem: 'All',
-            description: 'Локальный браузерный инструмент для быстрой сборки анимированных GIF из последовательности кадров.',
+            description: 'Пакертная сборка гиф, 1000 гиф за минуту, лучшее качество и низкий вес',
             offers: {
               '@type': 'Offer',
               price: '0',
@@ -326,12 +326,12 @@ export function updateSEOMetadata({ route, post }: UpdateSEOMetadataOptions) {
     let pathname = '/';
 
     if (route === 'services') {
-      title = 'Веб-сервисы и браузерные инструменты (Local GIF Studio) — Hallizar';
-      description = 'Инструменты создания GIF из серии кадров и оптимизации WebP, работающие на 100% локально в браузере без серверов.';
+      title = 'Халлизар студия — Блог о дизайне и веб-разработке, плагины Figma, веб-сервесы: пакетная сборка гиф,пакетное сжатие с сохранением структуры папки - png,jpeg,webp на самых пиздатых WASM кодировщиках';
+      description = 'Инструменты для пакетного создания GIF из серии кадров и оптимизации, сжатия, работающие на 100% локально в браузере без серверов.';
       pathname = '/services';
     } else if (route === 'about') {
       title = 'О проекте и технологиях — Hallizar';
-      description = 'Персональный автономный блог и инструменты для разработчиков. Стек: Astro, Decap CMS, React, Netlify.';
+      description = 'Блог о дизайне и веб-разработке. Плагины Figma и веб-сервисы: пакетная сборка GIF, сжатие PNG, JPEG, WebP с сохранением структуры папок на WASM-кодировщиках.';
       pathname = '/about';
     }
 
