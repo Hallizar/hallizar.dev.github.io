@@ -377,7 +377,7 @@ export default function App() {
                   }`}
                 >
                   <Sparkles size={14} />
-                  LOCAL GIF STUDIO
+                  ПАКЕТНАЯ СБОРКА ГИФ
                 </button>
 
                 <button
@@ -389,7 +389,7 @@ export default function App() {
                   }`}
                 >
                   <Sparkles size={14} />
-                  СЖИМАТЕЛЬ ИЗОБРАЖЕНИЙ
+                   ПАКЕТНОЕ СЖАТИЕ ИЗОБРАЖЕНИЙ
                 </button>
 
                 <button
@@ -418,11 +418,11 @@ export default function App() {
         {route === 'about' && (
           <div className="max-w-3xl mx-auto border border-(--line) bg-(--panel) p-8 font-mono text-xs text-(--text) space-y-6 rounded-2xl">
             <h1 className="text-2xl font-bold font-sans text-(--text)">
-              О платформе Hallizar
+              Привет я Hallizar
             </h1>
 
             <p className="text-sm leading-relaxed text-(--muted)">
-              Этот проект — персональный автономный блог и коллекция легковесных веб-инструментов. Сайт спроектирован по принципу максимальной производительности (Zero-CMS, SSG, 100/100 в Lighthouse) и абсолютной конфиденциальности (все медиа-утилиты обрабатывают данные локально в браузере).
+              Этот проект — персональный блог и коллекция легковесных веб-инструментов и плагинов. Сайт спроектирован по принципу максимальной производительности (Zero-CMS, SSG, 100/100 в Lighthouse) и абсолютной конфиденциальности (все медиа-утилиты обрабатывают данные локально в браузере).
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-(--line)">
@@ -436,7 +436,7 @@ export default function App() {
               <div className="p-4 border border-(--line) bg-(--elevated) rounded-xl">
                 <strong className="text-(--text) block mb-1 font-sans text-sm">Контакты &amp; Код</strong>
                 <p className="text-[11px] text-(--muted) m-0 leading-relaxed">
-                  Открытый исходный код: https://github.com/hallizar/BLOG
+                  Открытый исходный код: https://github.com/hallizar/
                 </p>
               </div>
             </div>
@@ -452,7 +452,7 @@ export default function App() {
               <Logo size={16} color="currentColor" />
             </div>
             <span className="text-(--text) font-bold">HALLIZAR</span>
-            <span>&middot; Автономный блог и веб-сервисы</span>
+            <span>&middot; Авторский блог, плагины, веб-сервисы </span>
           </div>
 
           <div className="flex items-center gap-4 text-[11px]">
