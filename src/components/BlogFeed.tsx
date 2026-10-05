@@ -59,8 +59,7 @@ export function BlogList({ posts, sidebarAd, onSelectPost, onAdEvent }: BlogList
             Лента статей
           </h1>
           <p className="mt-2 text-sm text-(--muted) max-w-xl leading-relaxed">
-            Заметки об инженерии браузера, графике и производительности. Всё работает локально,
-            без серверов и отслеживания.
+            Заметки об инженерии браузера, графике и производительности.
           </p>
         </div>
 
