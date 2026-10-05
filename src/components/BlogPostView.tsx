@@ -121,6 +121,28 @@ export function BlogPostView({
         </div>
       </div>
 
+      {/* Cover / Hero image or video */}
+      {post.image && (
+        <figure className="my-6 overflow-hidden rounded-xl border border-[#22222c] bg-[#07070b]">
+          {/\.(mp4|webm)(\?.*)?$/i.test(post.image) ? (
+            <video
+              src={post.image}
+              autoPlay
+              loop
+              muted
+              playsInline
+              className="w-full h-auto object-cover max-h-[500px]"
+            />
+          ) : (
+            <img
+              src={post.image}
+              alt={post.title}
+              className="w-full h-auto object-cover max-h-[500px]"
+            />
+          )}
+        </figure>
+      )}
+
       {/* Clean In-Article Native Banner */}
       {inArticleAd && (
         <div className="my-6">
@@ -156,20 +178,32 @@ export function BlogPostView({
               </h4>
             );
           }
-          // Markdown Image syntax: ![alt text](url)
+          // Markdown Image syntax: ![alt text](url) - supports GIF, WebP, PNG, JPG and MP4/WebM video
           const imgMatch = paragraph.match(/^!\[(.*?)\]\((.*?)\)$/);
           if (imgMatch) {
             const alt = imgMatch[1];
             const src = imgMatch[2];
+            const isVideo = /\.(mp4|webm)(\?.*)?$/i.test(src);
             return (
-              <figure key={index} className="my-6 border border-[#22222c] bg-[#07070b] overflow-hidden rounded-xs">
-                <img
-                  src={src}
-                  alt={alt || post.title}
-                  loading="lazy"
-                  decoding="async"
-                  className="w-full h-auto object-cover max-h-[600px] border-b border-[#181822]"
-                />
+              <figure key={index} className="my-6 border border-[#22222c] bg-[#07070b] overflow-hidden rounded-xl">
+                {isVideo ? (
+                  <video
+                    src={src}
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    className="w-full h-auto object-cover max-h-[600px] border-b border-[#181822]"
+                  />
+                ) : (
+                  <img
+                    src={src}
+                    alt={alt || post.title}
+                    loading="lazy"
+                    decoding="async"
+                    className="w-full h-auto object-cover max-h-[600px] border-b border-[#181822]"
+                  />
+                )}
                 {alt && (
                   <figcaption className="p-2.5 text-center text-xs text-[#80808c] font-mono bg-[#09090e]">
                     {alt}

@@ -76,13 +76,24 @@ const posts = (await getCollection('posts', ({ data }) => !data.draft))
           <a href={`/blog/${post.id}/`} class="qwen-card rounded-2xl overflow-hidden group block focus:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)">
             <div class="qwen-square">
               {preview ? (
-                <img
-                  src={preview}
-                  alt={post.data.title}
-                  loading="lazy"
-                  decoding="async"
-                  class="select-none"
-                />
+                /\.(mp4|webm)(\?.*)?$/i.test(preview) ? (
+                  <video
+                    src={preview}
+                    autoplay
+                    loop
+                    muted
+                    playsinline
+                    class="w-full h-full object-cover select-none pointer-events-none"
+                  />
+                ) : (
+                  <img
+                    src={preview}
+                    alt={post.data.title}
+                    loading="lazy"
+                    decoding="async"
+                    class="select-none"
+                  />
+                )
               ) : (
                 <div class="w-full h-full flex items-center justify-center bg-gradient-to-br from-(--accent-soft) to-transparent">
                   <span class="text-4xl font-black text-(--accent)/40 select-none">H</span>

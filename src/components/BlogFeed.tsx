@@ -125,13 +125,24 @@ export function BlogList({ posts, sidebarAd, onSelectPost, onAdEvent }: BlogList
               {/* Квадратное привью 1:1 */}
               <div className="qwen-square">
                 {post.image ? (
-                  <img
-                    src={squareImage(post.image)}
-                    alt={post.title}
-                    loading="lazy"
-                    className="select-none"
-                    draggable={false}
-                  />
+                  /\.(mp4|webm)(\?.*)?$/i.test(post.image) ? (
+                    <video
+                      src={post.image}
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                      className="w-full h-full object-cover select-none pointer-events-none"
+                    />
+                  ) : (
+                    <img
+                      src={squareImage(post.image)}
+                      alt={post.title}
+                      loading="lazy"
+                      className="select-none"
+                      draggable={false}
+                    />
+                  )
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-(--accent-soft) to-transparent">
                     <span className="text-4xl font-black text-(--accent)/40 select-none">

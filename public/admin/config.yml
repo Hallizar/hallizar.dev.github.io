@@ -60,7 +60,7 @@ collections:
         name: heroImage
         widget: image
         required: false
-        hint: "Cover image preview"
+        hint: "Обложка статьи: GIF, анимированный WebP, MP4-видео или статичные PNG/JPG"
 
       - label: "Tags"
         name: tags
