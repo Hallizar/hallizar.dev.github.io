@@ -226,7 +226,7 @@ export default function App() {
               <Logo size={28} color="currentColor" className="transition-transform duration-200 group-hover:scale-105" />
             </div>
             <div>
-              <div className="brand-title">HALLIZAR.RU</div>
+              <div className="brand-title">HALLIZAR</div>
               <div className="brand-subtitle">ENGINEERING & TOOLS</div>
             </div>
           </div>
@@ -451,7 +451,7 @@ export default function App() {
             <div className="flex items-center justify-center text-white shrink-0">
               <Logo size={16} color="currentColor" />
             </div>
-            <span className="text-(--text) font-bold">HALLIZAR.RU</span>
+            <span className="text-(--text) font-bold">HALLIZAR</span>
             <span>&middot; Автономный блог и веб-сервисы</span>
           </div>
 
