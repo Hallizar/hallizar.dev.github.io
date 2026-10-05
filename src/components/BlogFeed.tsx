@@ -59,7 +59,7 @@ export function BlogList({ posts, sidebarAd, onSelectPost, onAdEvent }: BlogList
             Лента статей
           </h1>
           <p className="mt-2 text-sm text-(--muted) max-w-xl leading-relaxed">
-            Заметки об инженерии браузера, графике и производительности.
+            Мой блог — о практическом дизайне и разработке. Делюсь своими компетенциями, решениями в дизайне и разработке.
           </p>
         </div>
 
@@ -103,7 +103,7 @@ export function BlogList({ posts, sidebarAd, onSelectPost, onAdEvent }: BlogList
       {/* Сетка-лента: изображения 1:1, как в Instagram */}
       {filteredPosts.length === 0 ? (
         <div className="py-24 text-center border border-dashed border-(--line-strong) rounded-2xl bg-(--panel)/40">
-          <p className="text-(--muted) text-sm">Ничего не найдено. Попробуйте другой запрос или тему.</p>
+          <p className="text-(--muted) text-sm">Пока не написал про это. Попробуйте другой запрос или тему.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
