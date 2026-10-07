@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=DM+Mono:wght@400;500&family=Manrope:wght@400;600;700;800&display=swap');
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
@@ -180,71 +180,77 @@ button:disabled {
   gap: 8px;
 }
 
-.step-list:before {
-  content: '';
-  position: absolute;
-  left: 20px;
-  top: 28px;
-  bottom: 28px;
-  border-left: 1px dashed var(--line-strong);
-}
-
 .step-node {
   position: relative;
   z-index: 1;
   width: 100%;
-  min-height: 60px;
+  min-height: 56px;
   display: grid;
-  grid-template-columns: 38px 1fr 18px;
+  grid-template-columns: 36px 1fr 18px;
   align-items: center;
   gap: 10px;
-  padding: 6px 10px;
-  border: 1px solid transparent;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
   color: var(--muted);
   background: transparent;
-  border-radius: 8px;
+  border-radius: 6px;
   text-align: left;
+  box-shadow: none;
   transition: all 0.2s ease;
 }
 
 .step-node:hover {
   color: var(--text);
-  border-color: var(--line);
+  border-color: var(--line-strong);
   background: var(--elevated);
+  box-shadow: none;
 }
 
 .step-node.active {
   color: var(--text);
   border-color: var(--accent);
-  background: var(--accent-soft);
-  box-shadow: inset 3px 0 0 var(--accent);
+  background: transparent;
+  box-shadow: none;
+}
+
+.step-node.complete {
+  border-color: var(--line-strong);
+  background: transparent;
+  box-shadow: none;
 }
 
 .step-node.complete .step-number {
-  color: var(--on-accent);
-  background: var(--accent);
-  border-color: var(--accent);
+  color: var(--success);
+  background: transparent;
+  border-color: var(--success);
+  box-shadow: none;
 }
 
 .step-number {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   display: grid;
   place-items: center;
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--line);
   color: var(--muted);
-  background: var(--elevated);
+  background: transparent;
   font-size: 11px;
   font-weight: 700;
-  border-radius: 6px;
+  border-radius: 4px;
+  box-shadow: none;
   transition: 0.2s;
 }
 
+.step-node:hover .step-number {
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
 .step-node.active .step-number {
-  color: var(--on-accent);
+  color: var(--accent);
   border-color: var(--accent);
-  background: var(--accent);
-  box-shadow: 0 0 16px var(--accent-soft);
+  background: transparent;
+  box-shadow: none;
 }
 
 .step-copy {
@@ -336,12 +342,13 @@ button:disabled {
 
 .stage-head h1 {
   margin: 8px 0 0;
-  font-size: clamp(28px, 4vw, 48px);
-  line-height: 1.05;
-  letter-spacing: -0.05em;
-  font-weight: 800;
+  font-family: 'Dela Gothic One', sans-serif;
+  font-size: clamp(22px, 3.2vw, 36px);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  font-weight: 400;
   color: var(--text);
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .stage-head h1 em {

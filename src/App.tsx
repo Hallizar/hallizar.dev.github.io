@@ -56,7 +56,7 @@ export default function App() {
     return 'blog';
   });
 
-  const [selectedService, setSelectedService] = useState<'gif-studio' | 'squoosh' | 'area-analyzer'>('squoosh');
+  const [selectedService, setSelectedService] = useState<'gif-studio' | 'squoosh' | 'area-analyzer'>('gif-studio');
   const [selectedPost, setSelectedPost] = useState<BlogPost | null>(null);
 
   // Единая тема для всего сайта (светлая / тёмная), сохраняется между визитами
@@ -251,6 +251,7 @@ export default function App() {
             <button
               onClick={() => {
                 setRoute('services');
+                setSelectedService('gif-studio');
                 selectPost(null);
               }}
               className={`px-3 py-1.5 border transition-all flex items-center gap-1.5 ${
@@ -302,6 +303,7 @@ export default function App() {
         <button
           onClick={() => {
             setRoute('services');
+            setSelectedService('gif-studio');
             selectPost(null);
           }}
           className={`px-2 py-1 border ${
@@ -468,6 +470,7 @@ export default function App() {
             <button
               onClick={() => {
                 setRoute('services');
+                setSelectedService('gif-studio');
                 selectPost(null);
               }}
               className="hover:text-(--accent) transition-colors"
