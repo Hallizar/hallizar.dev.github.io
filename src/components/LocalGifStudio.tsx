@@ -785,7 +785,7 @@ export function LocalGifStudio() {
         <section className="stage">
           <div className="stage-head">
             <div>
-              <div className="kicker">ПОСТРОЕНИЕ ПОСЛЕДОВАТЕЛЬНОСТИ / ШАГ 01 {String(step).padStart(2, '0')}</div>
+              <div className="kicker">ПОСТРОЕНИЕ ПОСЛЕДОВАТЕЛЬНОСТИ / ШАГ {String(step).padStart(2, '0')}</div>
               <h1>
                 {step === 1 && <>Загрузите <em>кадры.</em></>}
                 {step === 2 && <>Соберите <em>серии.</em></>}
