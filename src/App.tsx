@@ -422,7 +422,7 @@ export default function App() {
             </h1>
 
             <p className="text-sm leading-relaxed text-(--muted)">
-              Этот проект — персональный блог и коллекция легковесных веб-инструментов и плагинов. Сайт спроектирован по принципу максимальной производительности (Zero-CMS, SSG, 100/100 в Lighthouse) и абсолютной конфиденциальности (все медиа-утилиты обрабатывают данные локально в браузере).
+              Этот проект — персональный блог и коллекция легковесных веб-инструментов и плагинов. (Все медиа-утилиты обрабатывают данные локально в браузере).
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-(--line)">
@@ -436,7 +436,7 @@ export default function App() {
               <div className="p-4 border border-(--line) bg-(--elevated) rounded-xl">
                 <strong className="text-(--text) block mb-1 font-sans text-sm">Контакты &amp; Код</strong>
                 <p className="text-[11px] text-(--muted) m-0 leading-relaxed">
-                  Открытый исходный код: https://github.com/hallizar/
+                  TG: @hallizar
                 </p>
               </div>
             </div>
