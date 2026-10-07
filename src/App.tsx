@@ -232,13 +232,13 @@ export default function App() {
           </div>
 
           {/* Clean Public Navigation */}
-          <nav className="hidden md:flex items-center gap-1 font-mono text-xs">
+          <nav className="hidden md:flex items-center gap-1.5 font-mono text-xs">
             <button
               onClick={() => {
                 setRoute('blog');
                 backToFeed();
               }}
-              className={`px-3 py-1.5 border transition-all flex items-center gap-1.5 ${
+              className={`px-3.5 py-1.5 border rounded-full transition-all flex items-center gap-1.5 ${
                 route === 'blog'
                   ? 'border-(--accent) bg-(--accent)/15 text-(--text) font-bold'
                   : 'border-transparent text-(--muted) hover:text-(--text)'
@@ -254,7 +254,7 @@ export default function App() {
                 setSelectedService('gif-studio');
                 selectPost(null);
               }}
-              className={`px-3 py-1.5 border transition-all flex items-center gap-1.5 ${
+              className={`px-3.5 py-1.5 border rounded-full transition-all flex items-center gap-1.5 ${
                 route === 'services'
                   ? 'border-(--accent) bg-(--accent)/15 text-(--text) font-bold'
                   : 'border-transparent text-(--muted) hover:text-(--text)'
@@ -269,7 +269,7 @@ export default function App() {
                 setRoute('about');
                 selectPost(null);
               }}
-              className={`px-3 py-1.5 border transition-all flex items-center gap-1.5 ${
+              className={`px-3.5 py-1.5 border rounded-full transition-all flex items-center gap-1.5 ${
                 route === 'about'
                   ? 'border-(--accent) bg-(--accent)/15 text-(--text) font-bold'
                   : 'border-transparent text-(--muted) hover:text-(--text)'
@@ -288,13 +288,13 @@ export default function App() {
       </header>
 
       {/* Mobile nav bar — переключатель темы остаётся только в верхнем блоке (HALLIZAR.RU) */}
-      <div className="flex md:hidden border-b border-(--line) bg-(--panel) px-4 py-2 gap-3 text-xs font-mono">
+      <div className="flex md:hidden border-b border-(--line) bg-(--panel) px-4 py-2 gap-2 text-xs font-mono">
         <button
           onClick={() => {
             setRoute('blog');
             backToFeed();
           }}
-          className={`px-2 py-1 border ${
+          className={`px-3 py-1 border rounded-full ${
             route === 'blog' ? 'border-(--accent) text-(--text)' : 'border-transparent text-(--muted)'
           }`}
         >
@@ -306,7 +306,7 @@ export default function App() {
             setSelectedService('gif-studio');
             selectPost(null);
           }}
-          className={`px-2 py-1 border ${
+          className={`px-3 py-1 border rounded-full ${
             route === 'services' ? 'border-(--accent) text-(--text)' : 'border-transparent text-(--muted)'
           }`}
         >
@@ -317,7 +317,7 @@ export default function App() {
             setRoute('about');
             selectPost(null);
           }}
-          className={`px-2 py-1 border ${
+          className={`px-3 py-1 border rounded-full ${
             route === 'about' ? 'border-(--accent) text-(--text)' : 'border-transparent text-(--muted)'
           }`}
         >
@@ -369,10 +369,10 @@ export default function App() {
                 </span>
               </div>
 
-              <div className="flex flex-wrap gap-2 font-mono text-xs">
+              <div className="flex flex-wrap gap-2.5 font-mono text-xs">
                 <button
                   onClick={() => setSelectedService('gif-studio')}
-                  className={`px-4 py-2 border transition-all flex items-center gap-2 cursor-pointer ${
+                  className={`px-5 py-2 border rounded-full transition-all flex items-center gap-2 cursor-pointer ${
                     selectedService === 'gif-studio'
                       ? 'border-(--accent) bg-(--accent) text-(--on-accent) font-bold'
                       : 'border-(--line-strong) bg-(--panel) text-(--muted) hover:text-(--text)'
@@ -384,7 +384,7 @@ export default function App() {
 
                 <button
                   onClick={() => setSelectedService('squoosh')}
-                  className={`px-4 py-2 border transition-all flex items-center gap-2 cursor-pointer ${
+                  className={`px-5 py-2 border rounded-full transition-all flex items-center gap-2 cursor-pointer ${
                     selectedService === 'squoosh'
                       ? 'border-(--accent) bg-(--accent) text-(--on-accent) font-bold'
                       : 'border-(--line-strong) bg-(--panel) text-(--muted) hover:text-(--text)'
@@ -396,7 +396,7 @@ export default function App() {
 
                 <button
                   onClick={() => setSelectedService('area-analyzer')}
-                  className={`px-4 py-2 border transition-all flex items-center gap-2 cursor-pointer ${
+                  className={`px-5 py-2 border rounded-full transition-all flex items-center gap-2 cursor-pointer ${
                     selectedService === 'area-analyzer'
                       ? 'border-(--accent) bg-(--accent) text-(--on-accent) font-bold'
                       : 'border-(--line-strong) bg-(--panel) text-(--muted) hover:text-(--text)'
