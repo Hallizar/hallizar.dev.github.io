@@ -214,16 +214,16 @@ export default function App() {
 
       {/* Main Clean Header */}
       <header className="topbar sticky top-0 z-40 bg-(--bg)/90 backdrop-blur-md border-b border-(--line)">
-        <div className="flex items-center gap-6">
+        <div className="w-full flex items-center justify-between gap-6">
           <div
             onClick={() => {
               setRoute('blog');
               backToFeed();
             }}
-            className="topbar-brand cursor-pointer flex items-center gap-3 group"
+            className="topbar-brand cursor-pointer flex items-center gap-3 group shrink-0"
           >
-            <div className="brand-mark">
-              <Logo size={28} color="currentColor" className="transition-transform duration-200 group-hover:scale-105" />
+            <div className="brand-mark text-(--text)">
+              <Logo size={24} color="currentColor" className="transition-transform duration-200 group-hover:scale-105" />
             </div>
             <div>
               <div className="brand-title">HALLIZAR</div>
@@ -279,8 +279,8 @@ export default function App() {
             </button>
           </nav>
 
-          {/* Переключатель тёмной / светлой темы */}
-          <div className="ml-auto flex items-center gap-3">
+          {/* Переключатель тёмной / светлой темы — выровнен по правому краю */}
+          <div className="ml-auto flex items-center gap-3 shrink-0">
             <ThemeToggle theme={theme} onToggle={toggleTheme} />
           </div>
         </div>
@@ -382,7 +382,7 @@ export default function App() {
 
                 <button
                   onClick={() => setSelectedService('squoosh')}
-                  className={`px-4 py-2 border transition-all flex items-center gap-2 cursor-pointer rounded-lg ${
+                  className={`px-4 py-2 border transition-all flex items-center gap-2 cursor-pointer ${
                     selectedService === 'squoosh'
                       ? 'border-(--accent) bg-(--accent) text-(--on-accent) font-bold'
                       : 'border-(--line-strong) bg-(--panel) text-(--muted) hover:text-(--text)'
@@ -448,7 +448,7 @@ export default function App() {
       <footer className="border-t border-(--line) bg-(--panel) py-8 px-6 mt-12 text-center text-xs font-mono text-(--muted)">
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
-            <div className="flex items-center justify-center text-white shrink-0">
+            <div className="flex items-center justify-center text-(--text) shrink-0">
               <Logo size={16} color="currentColor" />
             </div>
             <span className="text-(--text) font-bold">HALLIZAR</span>
