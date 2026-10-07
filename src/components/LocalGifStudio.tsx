@@ -829,7 +829,7 @@ export function LocalGifStudio() {
                     </div>
 
                     <div className="drop-index">
-                      <span>ШАГ 01 &middot; ЗАГРУЗКА</span>
+                      <span>ШАГ  &middot; ЗАГРУЗКА</span>
                     </div>
 
                     <h2>{loadingFiles ? 'ЧТЕНИЕ ИЗОБРАЖЕНИЙ…' : 'Перетащите серию кадров сюда'}</h2>
