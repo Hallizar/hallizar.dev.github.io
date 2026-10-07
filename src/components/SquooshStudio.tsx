@@ -614,11 +614,11 @@ export function SquooshStudio() {
               <Sparkles size={18} />
             </span>
             <h2 className="text-xl sm:text-2xl font-bold tracking-tight font-sans text-(--text)">
-              Сжиматель изображений
+              Сжатие с сохранением структуры папок
             </h2>
           </div>
           <p className="mt-1 text-xs font-mono text-(--muted)">
-            Локальная компрессия без потери исходного формата · PNG (WASM imagequant) · JPEG · WebP
+           Поддерживаемые форматы · PNG · JPEG · WebP
           </p>
         </div>
 
@@ -654,7 +654,7 @@ export function SquooshStudio() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <label className="text-xs font-mono uppercase tracking-wider font-bold text-(--accent) flex items-center gap-1.5">
-                  <Sliders size={14} /> Степень сжатия PNG (WASM imagequant)
+                  <Sliders size={14} /> Степень сжатия PNG
                 </label>
                 <p className="text-xs text-(--muted) mt-0.5 font-sans">
                   Квантование палитры цветов. Чем сильнее сжатие, тем меньше весит PNG без потери геометрии.
@@ -823,7 +823,6 @@ export function SquooshStudio() {
               <p className="leading-relaxed m-0">
                 <strong>Предупреждение:</strong> для сильно сжатых файлов итоговый вес может оказаться
                 выше желаемого из-за физических ограничений сжатия без принудительного уменьшения разрешения.
-                Исходный формат каждого файла строго сохраняется.
               </p>
             </div>
           </div>

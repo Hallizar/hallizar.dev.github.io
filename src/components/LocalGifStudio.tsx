@@ -744,7 +744,7 @@ export function LocalGifStudio() {
     <div className={`step-${step} min-w-0`}>
       <div className="wizard">
         <aside className="step-rail">
-          <div className="rail-caption">WORKFLOW / 04</div>
+          <div className="rail-caption">РАБОЧИЙ ПРОЦЕСС / 04</div>
 
           <div className="step-list">
             {stepTitles.map(([number, title, caption], index) => {
@@ -776,8 +776,8 @@ export function LocalGifStudio() {
           <div className="rail-bottom">
             <span className="corner-mark">↘</span>
             <div>
-              <strong>NO CLOUD</strong>
-              <span>Изображения остаются в памяти браузера.</span>
+              <strong>Подсказка</strong>
+              <span>Следуйте этапам, все очень просто.</span>
             </div>
           </div>
         </aside>
@@ -785,7 +785,7 @@ export function LocalGifStudio() {
         <section className="stage">
           <div className="stage-head">
             <div>
-              <div className="kicker">SEQUENCE BUILDER / STEP {String(step).padStart(2, '0')}</div>
+              <div className="kicker">ПОСТРОЕНИЕ ПОСЛЕДОВАТЕЛЬНОСТИ / ШАГ 01 {String(step).padStart(2, '0')}</div>
               <h1>
                 {step === 1 && <>Загрузите <em>кадры.</em></>}
                 {step === 2 && <>Соберите <em>серии.</em></>}
@@ -804,7 +804,7 @@ export function LocalGifStudio() {
           <div className="stage-content">
             {step === 1 && (
               <section className="step-panel step-upload">
-                <div className="panel-label">INPUT / DROP ZONE</div>
+                <div className="panel-label">ИНПУТ / ДРОП ЗОНА</div>
                 <div
                   className={`dropzone${dragging ? ' dragging' : ''}`}
                   onDragEnter={(event) => {
@@ -888,7 +888,7 @@ export function LocalGifStudio() {
 
             {step === 2 && (
               <section className="step-panel">
-                <div className="panel-label">DETECT / SEQUENCES</div>
+                <div className="panel-label">ОБНАРУЖЕНИЕ / ПОСЛЕДОВАТЕЛЬНОСТИ</div>
 
                 {groups.length === 0 ? (
                   <div className="empty-state">
@@ -1058,7 +1058,7 @@ export function LocalGifStudio() {
 
             {step === 3 && (
               <section className="step-panel">
-                <div className="panel-label">OUTPUT / PARAMETERS</div>
+                <div className="panel-label">ВЫХОДНЫЕ ДАННЫЕ / ПАРАМЕТРЫ</div>
 
                 <div className="settings-layout">
                   <div className="settings-main">
@@ -1217,7 +1217,7 @@ export function LocalGifStudio() {
 
             {step === 4 && (
               <section className="step-panel result-step">
-                <div className="panel-label">OUTPUT / EXPORT</div>
+                <div className="panel-label">ЭКСПОРТ</div>
 
                 <div className="result-overview">
                   <div className="result-count">
@@ -1308,8 +1308,8 @@ export function LocalGifStudio() {
 
           <footer className="wizard-footer">
             <div className="footer-hint">
-              <span>HALLIZAR / LOCAL GIF STUDIO</span>
-              <small>{step === 4 ? 'EXPORT READY' : 'NO SERVER · NO UPLOAD'}</small>
+              <span>ПАКЕТНАЯ СБОРКА ГИФ / ИЗ ПОСЛЕДОВАТЕЛЬНОСТЕЙ</span>
+              <small>{step === 4 ? 'СОТНИ ГИФ' : 'ЗА СЕКУНДЫ · В ЛУЧШЕМ КАЧЕСТВЕ'}</small>
             </div>
 
             <div className="footer-actions">
